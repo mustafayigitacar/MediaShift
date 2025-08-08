@@ -370,6 +370,17 @@
                     <ProgressBar fx:id="batchProgressBar" maxWidth="Infinity"/>
                     <Label fx:id="batchProgressLabel" text="Hazır" styleClass="progress-label"/>
                 </VBox>
+                
+                <!-- Batch Log Alanı -->
+                <VBox spacing="5" styleClass="log-section" VBox.vgrow="ALWAYS">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="İşlem Logları:" styleClass="section-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="clearBatchLogsBtn" text="Logları Temizle" styleClass="secondary-button"/>
+                    </HBox>
+                    <TextArea fx:id="batchLogArea" editable="false" wrapText="true" 
+                             styleClass="log-area" VBox.vgrow="ALWAYS" prefHeight="200"/>
+                </VBox>
                 </VBox>
             </ScrollPane>
         </Tab>
@@ -527,7 +538,7 @@
     <HBox spacing="10" alignment="CENTER_LEFT" styleClass="status-bar">
         <Label text="Hazır" styleClass="status-label"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Label text="FFmpeg GUI v1.0.1" styleClass="version-label"/>
+        <Label text="FFmpeg GUI v1.0.2" styleClass="version-label"/>
     </HBox>
     
 </VBox> 

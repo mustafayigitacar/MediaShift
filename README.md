@@ -113,3 +113,6 @@ FFmpeg bulunamazsa: `choco install ffmpeg`
 ---
 
 **🎯 Not**: Bu uygulama sistem Java ve FFmpeg kullanır. Manuel kurulum gereklidir.
+
+Eski commitlerin bulunduğu repoyu bir hata sonucu kaybettiğimden dolayı uygulama bir anda ortaya çıkmış gibi görünebilir.
+İlk commit daha eskiden yapılmıştır.

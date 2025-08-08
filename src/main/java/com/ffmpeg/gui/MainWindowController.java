@@ -11,6 +11,19 @@ import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.scene.Scene;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.HBox;
+import javafx.geometry.Insets;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Label;
+import javafx.scene.control.Button;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.ScrollPane.ScrollBarPolicy;
+import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.ButtonType;
+import javafx.stage.Modality;
+import javafx.geometry.Pos;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +32,9 @@ import java.io.File;
 import java.net.URL;
 import java.util.List;
 import java.util.ResourceBundle;
+import java.util.Optional;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class MainWindowController implements Initializable {
     
@@ -105,6 +121,8 @@ public class MainWindowController implements Initializable {
     @FXML private Button startBatchProcessBtn;
     @FXML private ProgressBar batchProgressBar;
     @FXML private Label batchProgressLabel;
+    @FXML private TextArea batchLogArea;
+    @FXML private Button clearBatchLogsBtn;
     
     // Batch Video Settings
     @FXML private CheckBox enableVideoSettingsCheck;
@@ -181,6 +199,11 @@ public class MainWindowController implements Initializable {
         loadSettings();
         
         ffmpegService = new FFmpegService();
+        
+        // Detaylı loglama ayarını uygula
+        if (enableLoggingCheck != null) {
+            ffmpegService.setDetailedLogging(enableLoggingCheck.isSelected());
+        }
         
         // Media analyzer'ı başlat
         String ffmpegPath = ffmpegService.getFfmpegPath();
@@ -360,6 +383,7 @@ public class MainWindowController implements Initializable {
         removeBatchFileBtn.setOnAction(e -> removeBatchFile());
         selectBatchOutputDirBtn.setOnAction(e -> selectBatchOutputDir());
         startBatchProcessBtn.setOnAction(e -> startBatchProcess());
+        clearBatchLogsBtn.setOnAction(e -> batchLogArea.clear());
         
         batchFileList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
             // Batch tab'ında dosya seçimi sadece kaldırma işlemi için kullanılıyor
@@ -392,7 +416,13 @@ public class MainWindowController implements Initializable {
         
         // Genel Ayarlar Event Handler'ları
         maxThreadsSpinner.valueProperty().addListener((obs, oldVal, newVal) -> applyGeneralSettings());
-        enableLoggingCheck.setOnAction(e -> applyGeneralSettings());
+        enableLoggingCheck.setOnAction(e -> {
+            boolean detailedLogging = enableLoggingCheck.isSelected();
+            if (ffmpegService != null) {
+                ffmpegService.setDetailedLogging(detailedLogging);
+                logger.info("Detailed logging " + (detailedLogging ? "enabled" : "disabled"));
+            }
+        });
         
         // Ayarları yönetme butonları
         saveSettingsBtn.setOnAction(e -> saveSettings());
@@ -644,9 +674,62 @@ public class MainWindowController implements Initializable {
             return;
         }
         
+        // Fazla dosya kontrolü
+        if (batchFiles.size() > 100) {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Büyük Batch İşlemi");
+            alert.setHeaderText("Çok sayıda dosya seçildi");
+            alert.setContentText(String.format("Toplam %d dosya seçildi. Bu işlem uzun sürebilir ve sistem kaynaklarını yoğun kullanabilir.\n\n" +
+                    "Devam etmek istiyor musunuz?", batchFiles.size()));
+            
+            Optional<ButtonType> result = alert.showAndWait();
+            if (result.isPresent() && result.get() != ButtonType.OK) {
+                return;
+            }
+        }
+        
         if (batchOutputDir.getText().isEmpty()) {
             showAlert("Hata", "Lütfen önce çıktı klasörü seçin", Alert.AlertType.WARNING);
             selectBatchOutputDir();
+            return;
+        }
+        
+        // Video ve audio ayarlarının seçilip seçilmediğini kontrol et
+        boolean hasVideoFiles = false;
+        boolean hasAudioFiles = false;
+        
+        for (File file : batchFiles) {
+            String extension = getFileExtension(file.getName()).toLowerCase();
+            if (extension.matches("(mp4|avi|mkv|mov|wmv|flv|webm|m4v|3gp|ogv)")) {
+                hasVideoFiles = true;
+            } else if (extension.matches("(mp3|wav|flac|aac|ogg|wma|m4a|opus)")) {
+                hasAudioFiles = true;
+            }
+        }
+        
+        // Video dosyaları varsa video ayarlarının seçilip seçilmediğini kontrol et
+        if (hasVideoFiles && !enableVideoSettingsCheck.isSelected()) {
+            showAlert("Uyarı", "Video dosyaları seçilmiş ancak video ayarları etkinleştirilmemiş.\n\n" +
+                    "Lütfen 'Video ayarlarını kullan' seçeneğini işaretleyin veya video dosyalarını listeden çıkarın.", 
+                    Alert.AlertType.WARNING);
+            return;
+        }
+        
+        // Audio dosyaları varsa audio ayarlarının seçilip seçilmediğini kontrol et
+        if (hasAudioFiles && !enableAudioSettingsCheck.isSelected()) {
+            showAlert("Uyarı", "Ses dosyaları seçilmiş ancak ses ayarları etkinleştirilmemiş.\n\n" +
+                    "Lütfen 'Ses ayarlarını kullan' seçeneğini işaretleyin veya ses dosyalarını listeden çıkarın.", 
+                    Alert.AlertType.WARNING);
+            return;
+        }
+        
+        // Hiç video veya audio dosyası yoksa uyarı ver
+        if (!hasVideoFiles && !hasAudioFiles) {
+            showAlert("Uyarı", "Seçilen dosyalar arasında desteklenen video veya ses dosyası bulunamadı.\n\n" +
+                    "Desteklenen formatlar:\n" +
+                    "Video: MP4, AVI, MKV, MOV, WMV, FLV, WebM\n" +
+                    "Ses: MP3, WAV, FLAC, AAC, OGG, WMA", 
+                    Alert.AlertType.WARNING);
             return;
         }
         
@@ -681,7 +764,29 @@ public class MainWindowController implements Initializable {
             batchSettings.setAudioChannels(getChannelCount(batchAudioChannelsCombo.getValue()));
         }
         
+        // Log alanını temizle ve başlangıç mesajı ekle
+        if (batchLogArea != null) {
+            batchLogArea.clear();
+            batchLogArea.appendText("=== BATCH İŞLEM BAŞLATILIYOR ===\n");
+            batchLogArea.appendText("Tarih: " + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "\n");
+            batchLogArea.appendText("Dosya sayısı: " + batchFiles.size() + "\n");
+            batchLogArea.appendText("Çıktı klasörü: " + batchOutputDir.getText() + "\n");
+            batchLogArea.appendText("================================\n\n");
+        }
+        
         BatchProcessingTask task = new BatchProcessingTask(batchFiles, batchOutputDir.getText(), batchSettings);
+        
+        // Log callback'i ayarla
+        task.setLogCallback(message -> {
+            if (batchLogArea != null) {
+                batchLogArea.appendText(message + "\n");
+                // Otomatik scroll
+                batchLogArea.setScrollTop(Double.MAX_VALUE);
+            }
+        });
+        
+        // Thread sayısını optimize et
+        ffmpegService.adjustThreadCountForBatch(batchFiles.size());
         
         // Önceki binding'i kaldır
         batchProgressBar.progressProperty().unbind();
@@ -693,22 +798,55 @@ public class MainWindowController implements Initializable {
         task.setOnSucceeded(e -> {
             // Binding'i kaldır ve UI'ı güncelle
             batchProgressBar.progressProperty().unbind();
-            batchProgressLabel.setText("Batch process completed!");
-            showAlert("Success", "Batch process completed", Alert.AlertType.INFORMATION);
+            batchProgressBar.setProgress(1.0); // Progress bar'ı tamamla
+            batchProgressLabel.setText("Batch işlem tamamlandı!");
+            
+            // Log penceresine tamamlanma mesajı ekle
+            if (batchLogArea != null) {
+                batchLogArea.appendText("\n=== BATCH İŞLEM TAMAMLANDI ===\n");
+            }
+            
+            // Kısa bir gecikme ile alert'i göster (progress bar'ın tamamlanması için)
+            javafx.application.Platform.runLater(() -> {
+                showAlert("Başarılı", "Batch işlem başarıyla tamamlandı", Alert.AlertType.INFORMATION);
+            });
         });
         
         task.setOnFailed(e -> {
             // Binding'i kaldır ve UI'ı güncelle
             batchProgressBar.progressProperty().unbind();
-            batchProgressLabel.setText("Batch process failed: " + task.getException().getMessage());
-            showAlert("Error", "Batch process failed", Alert.AlertType.ERROR);
+            batchProgressBar.setProgress(0); // Hata durumunda progress bar'ı sıfırla
+            batchProgressLabel.setText("Batch işlem başarısız: " + task.getException().getMessage());
+            
+            // Log penceresine hata mesajı ekle
+            if (batchLogArea != null) {
+                batchLogArea.appendText("\n=== BATCH İŞLEM BAŞARISIZ ===\n");
+                batchLogArea.appendText("Hata: " + task.getException().getMessage() + "\n");
+            }
+            
+            // Kısa bir gecikme ile alert'i göster
+            javafx.application.Platform.runLater(() -> {
+                showAlert("Hata", "Batch işlem başarısız: " + task.getException().getMessage(), Alert.AlertType.ERROR);
+            });
         });
         
         task.setOnRunning(e -> {
-            batchProgressLabel.setText("Batch process running...");
+            batchProgressLabel.setText("Batch işlem çalışıyor...");
         });
         
-        batchProgressLabel.setText("Batch process starting...");
+        task.setOnCancelled(e -> {
+            // İptal durumunda da binding'i kaldır
+            batchProgressBar.progressProperty().unbind();
+            batchProgressBar.setProgress(0);
+            batchProgressLabel.setText("Batch işlem iptal edildi");
+            
+            // Log penceresine iptal mesajı ekle
+            if (batchLogArea != null) {
+                batchLogArea.appendText("\n=== BATCH İŞLEM İPTAL EDİLDİ ===\n");
+            }
+        });
+        
+        batchProgressLabel.setText("Batch işlem başlatılıyor...");
         
         Thread taskThread = new Thread(task);
         taskThread.setDaemon(true);
@@ -816,6 +954,9 @@ public class MainWindowController implements Initializable {
                 }
                 if (autoDetectFFmpegCheck != null) {
                     autoDetectFFmpegCheck.setSelected(true);
+                }
+                if (enableLoggingCheck != null) {
+                    enableLoggingCheck.setSelected(false); // Varsayılan olarak detaylı loglama devre dışı
                 }
                 
                 // Dönüştürme ayarları
@@ -1464,13 +1605,9 @@ public class MainWindowController implements Initializable {
             if (ffmpegService != null) {
                 // FFmpeg servisine thread sayısını bildir
                 logger.info("Thread count sent to FFmpeg service: " + maxThreads);
-            }
-            
-            // Loglama ayarını uygula
-            if (enableLogging) {
-                logger.info("Detailed logging enabled");
-            } else {
-                logger.info("Detailed logging disabled");
+                // FFmpeg servisine detaylı loglama ayarını bildir
+                ffmpegService.setDetailedLogging(enableLogging);
+                logger.info("Detailed logging enabled: " + enableLogging);
             }
             
             logger.info("General settings applied: MaxThreads=" + maxThreads + ", Logging=" + enableLogging);

@@ -18,6 +18,7 @@ import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.List;
 
 public class FFmpegService {
     
@@ -31,9 +32,10 @@ public class FFmpegService {
     private String ffmpegPath;
     private String ffprobePath;
     private int maxThreads;
+    private boolean detailedLogging = false; // Detaylı loglama özelliği
     
     public FFmpegService() {
-        this.maxThreads = Runtime.getRuntime().availableProcessors();
+        this.maxThreads = Math.min(Runtime.getRuntime().availableProcessors(), 8); // Maksimum 8 thread
         this.executorService = Executors.newFixedThreadPool(maxThreads);
         initializeFFmpeg();
     }
@@ -300,8 +302,14 @@ public class FFmpegService {
                 logger.info("Audio codec: {}", audioCodec);
                 logger.info("Bitrate: {} kbps", params.getBitrate());
                 
+                // Detaylı loglama için FFmpeg listener ekle
+                if (detailedLogging) {
+                    logger.info("Detailed logging enabled - FFmpeg terminal output will be logged");
+                    logger.info("FFmpeg command: {}", builder.toString());
+                }
+                
                 executor.createJob(builder, progress -> {
-                    // out_time_ns nanosecond cinsinden geliyor, saniyeye çeviriyoruz
+                    // out_time_ns nanosecond cinsinden geliyor, saniyeye çevir
                     double currentTime = progress.out_time_ns / 1000000000.0;
                     if (currentTime > 0) {
                         callback.onProgress(currentTime);
@@ -431,6 +439,12 @@ public class FFmpegService {
                 logger.info("Bitrate: {} kbps", params.getBitrate());
                 logger.info("Sample Rate: {} Hz", params.getSampleRate());
                 logger.info("Channels: {}", params.getChannels());
+                
+                // Detaylı loglama için FFmpeg listener ekle
+                if (detailedLogging) {
+                    logger.info("Detailed logging enabled - FFmpeg terminal output will be logged");
+                    logger.info("FFmpeg command: {}", builder.toString());
+                }
                 
                 executor.createJob(builder, progress -> {
                     // out_time_ns nanosecond cinsinden geliyor, saniyeye çevir
@@ -568,77 +582,141 @@ public class FFmpegService {
         return CompletableFuture.runAsync(() -> {
             int totalFiles = files.size();
             final int[] processedFiles = {0};
+            final int[] failedFiles = {0};
             
             logger.info("Batch processing starting: {} files, output directory: {}", totalFiles, outputDir);
             
-            for (File file : files) {
+            // Büyük dosya listeleri için batch boyutu belirle
+            int batchSize = Math.min(10, Math.max(1, totalFiles / 4)); // Maksimum 10 dosya, minimum 1
+            logger.info("Batch size: {} files per batch", batchSize);
+            
+            // Dosyaları batch'lere böl
+            for (int i = 0; i < totalFiles; i += batchSize) {
+                int endIndex = Math.min(i + batchSize, totalFiles);
+                List<File> batch = files.subList(i, endIndex);
+                
+                logger.info("Processing batch {}/{}: {} files", (i / batchSize) + 1, 
+                           (totalFiles + batchSize - 1) / batchSize, batch.size());
+                
+                // Her batch için CompletableFuture listesi oluştur
+                List<CompletableFuture<Void>> batchFutures = new java.util.ArrayList<>();
+                
+                for (File file : batch) {
+                    CompletableFuture<Void> fileFuture = CompletableFuture.runAsync(() -> {
+                        try {
+                            logger.info("Processing file: {} ({}/{})", file.getName(), processedFiles[0] + 1, totalFiles);
+                            
+                            FileType fileType = dosyaTuruBelirle(file.getAbsolutePath());
+                            logger.info("File type detected: {} -> {}", file.getName(), fileType);
+                            
+                            String outputPath = cikisYoluOlustur(file, outputDir, fileType, batchSettings);
+                            logger.info("Output path: {}", outputPath);
+                            
+                            if (fileType == FileType.VIDEO) {
+                                logger.info("Video conversion starting: {}", file.getName());
+                                VideoConversionParams params = new VideoConversionParams(
+                                    file.getAbsolutePath(), outputPath, 
+                                    batchSettings.getVideoFormat().toLowerCase(), 
+                                    batchSettings.getVideoCodec(), 
+                                    batchSettings.getVideoBitrate(), 
+                                    batchSettings.getVideoWidth(), 
+                                    batchSettings.getVideoHeight(), 
+                                    batchSettings.getVideoFps()
+                                );
+                                
+                                videoDonustur(params, new ProgressCallback() {
+                                    @Override
+                                    public void onProgress(double progress) {
+                                        callback.onFileProgress(processedFiles[0], totalFiles, progress);
+                                    }
+                                }).get(30, java.util.concurrent.TimeUnit.MINUTES); // 30 dakika timeout
+                                
+                                logger.info("Video conversion completed: {}", file.getName());
+                                
+                            } else if (fileType == FileType.AUDIO) {
+                                logger.info("Audio conversion starting: {}", file.getName());
+                                AudioConversionParams params = new AudioConversionParams(
+                                    file.getAbsolutePath(), outputPath, 
+                                    batchSettings.getAudioFormat().toLowerCase(), 
+                                    batchSettings.getAudioCodec(), 
+                                    batchSettings.getAudioBitrate(), 
+                                    batchSettings.getAudioSampleRate(), 
+                                    batchSettings.getAudioChannels()
+                                );
+                                
+                                audioDonustur(params, new ProgressCallback() {
+                                    @Override
+                                    public void onProgress(double progress) {
+                                        callback.onFileProgress(processedFiles[0], totalFiles, progress);
+                                    }
+                                }).get(30, java.util.concurrent.TimeUnit.MINUTES); // 30 dakika timeout
+                                
+                                logger.info("Audio conversion completed: {}", file.getName());
+                                
+                            } else {
+                                logger.warn("Unsupported file type: {}", file.getName());
+                                callback.onFileError(file.getName(), "Unsupported file type");
+                                failedFiles[0]++;
+                                return;
+                            }
+                            
+                            synchronized (processedFiles) {
+                                processedFiles[0]++;
+                            }
+                            callback.onFileCompleted(file.getName());
+                            logger.info("File processed successfully: {} ({}/{})", file.getName(), processedFiles[0], totalFiles);
+                            
+                        } catch (java.util.concurrent.TimeoutException e) {
+                            logger.error("File processing timeout: {}", file.getName(), e);
+                            callback.onFileError(file.getName(), "Processing timeout after 30 minutes");
+                            synchronized (failedFiles) {
+                                failedFiles[0]++;
+                            }
+                            synchronized (processedFiles) {
+                                processedFiles[0]++;
+                            }
+                        } catch (Exception e) {
+                            logger.error("Batch processing error: {}", file.getName(), e);
+                            callback.onFileError(file.getName(), e.getMessage());
+                            synchronized (failedFiles) {
+                                failedFiles[0]++;
+                            }
+                            synchronized (processedFiles) {
+                                processedFiles[0]++;
+                            }
+                        }
+                    }, executorService);
+                    
+                    batchFutures.add(fileFuture);
+                }
+                
+                // Batch'teki tüm dosyaların tamamlanmasını bekle (timeout ile)
                 try {
-                    logger.info("Processing file: {} ({}/{})", file.getName(), processedFiles[0] + 1, totalFiles);
-                    
-                    FileType fileType = dosyaTuruBelirle(file.getAbsolutePath());
-                    logger.info("File type detected: {} -> {}", file.getName(), fileType);
-                    
-                    String outputPath = cikisYoluOlustur(file, outputDir, fileType, batchSettings);
-                    logger.info("Output path: {}", outputPath);
-                    
-                    if (fileType == FileType.VIDEO) {
-                        logger.info("Video conversion starting: {}", file.getName());
-                        VideoConversionParams params = new VideoConversionParams(
-                            file.getAbsolutePath(), outputPath, 
-                            batchSettings.getVideoFormat().toLowerCase(), 
-                            batchSettings.getVideoCodec(), 
-                            batchSettings.getVideoBitrate(), 
-                            batchSettings.getVideoWidth(), 
-                            batchSettings.getVideoHeight(), 
-                            batchSettings.getVideoFps()
-                        );
-                        
-                        videoDonustur(params, new ProgressCallback() {
-                            @Override
-                            public void onProgress(double progress) {
-                                callback.onFileProgress(processedFiles[0], totalFiles, progress);
-                            }
-                        }).get();
-                        
-                        logger.info("Video conversion completed: {}", file.getName());
-                        
-                    } else if (fileType == FileType.AUDIO) {
-                        logger.info("Audio conversion starting: {}", file.getName());
-                        AudioConversionParams params = new AudioConversionParams(
-                            file.getAbsolutePath(), outputPath, 
-                            batchSettings.getAudioFormat().toLowerCase(), 
-                            batchSettings.getAudioCodec(), 
-                            batchSettings.getAudioBitrate(), 
-                            batchSettings.getAudioSampleRate(), 
-                            batchSettings.getAudioChannels()
-                        );
-                        
-                        audioDonustur(params, new ProgressCallback() {
-                            @Override
-                            public void onProgress(double progress) {
-                                callback.onFileProgress(processedFiles[0], totalFiles, progress);
-                            }
-                        }).get();
-                        
-                        logger.info("Audio conversion completed: {}", file.getName());
-                        
-                    } else {
-                        logger.warn("Unsupported file type: {}", file.getName());
-                        callback.onFileError(file.getName(), "Unsupported file type");
-                        continue;
+                    CompletableFuture.allOf(batchFutures.toArray(new CompletableFuture[0]))
+                        .get(60, java.util.concurrent.TimeUnit.MINUTES); // 60 dakika timeout
+                    logger.info("Batch completed: {}/{} files processed", processedFiles[0], totalFiles);
+                } catch (java.util.concurrent.TimeoutException e) {
+                    logger.error("Batch processing timeout", e);
+                    // Timeout durumunda kalan future'ları iptal et
+                    for (CompletableFuture<Void> future : batchFutures) {
+                        if (!future.isDone()) {
+                            future.cancel(true);
+                        }
                     }
-                    
-                    processedFiles[0]++;
-                    callback.onFileCompleted(file.getName());
-                    logger.info("File processed successfully: {} ({}/{})", file.getName(), processedFiles[0], totalFiles);
-                    
                 } catch (Exception e) {
-                    logger.error("Batch processing error: {}", file.getName(), e);
-                    callback.onFileError(file.getName(), e.getMessage());
+                    logger.error("Batch processing failed", e);
+                }
+                
+                // Bellek temizliği için kısa bir bekleme
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
             }
             
-            logger.info("Batch processing completed: {} files processed", processedFiles[0]);
+            logger.info("Batch processing completed: {} files processed, {} files failed", processedFiles[0], failedFiles[0]);
         }, executorService);
     }
     
@@ -662,7 +740,27 @@ public class FFmpegService {
     
     public void shutdown() {
         if (executorService != null && !executorService.isShutdown()) {
+            logger.info("Shutting down FFmpegService executor...");
             executorService.shutdown();
+            
+            try {
+                // 30 saniye bekle, sonra force shutdown
+                if (!executorService.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                    logger.warn("Executor did not terminate in 30 seconds, forcing shutdown...");
+                    executorService.shutdownNow();
+                    
+                    // 10 saniye daha bekle
+                    if (!executorService.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)) {
+                        logger.error("Executor could not be terminated");
+                    }
+                }
+            } catch (InterruptedException e) {
+                logger.warn("Shutdown interrupted, forcing shutdown...");
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            
+            logger.info("FFmpegService executor shutdown completed");
         }
     }
     
@@ -680,11 +778,58 @@ public class FFmpegService {
     }
     
     public void setMaxThreads(int maxThreads) {
-        this.maxThreads = maxThreads;
+        this.maxThreads = Math.min(maxThreads, 8); // Maksimum 8 thread
+        
+        // Mevcut executor'ı düzgün şekilde kapat
         if (executorService != null && !executorService.isShutdown()) {
+            logger.info("Shutting down existing executor to update thread count...");
             executorService.shutdown();
+            
+            try {
+                // 10 saniye bekle
+                if (!executorService.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)) {
+                    logger.warn("Executor did not terminate in 10 seconds, forcing shutdown...");
+                    executorService.shutdownNow();
+                    
+                    // 5 saniye daha bekle
+                    if (!executorService.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                        logger.error("Executor could not be terminated during thread count update");
+                    }
+                }
+            } catch (InterruptedException e) {
+                logger.warn("Thread count update interrupted, forcing shutdown...");
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
         }
-        this.executorService = Executors.newFixedThreadPool(maxThreads);
+        
+        // Yeni executor oluştur
+        this.executorService = Executors.newFixedThreadPool(this.maxThreads);
+        logger.info("Thread count updated to: {}", this.maxThreads);
+    }
+    
+    public void adjustThreadCountForBatch(int fileCount) {
+        // Dosya sayısına göre thread sayısını optimize et
+        int optimalThreads;
+        if (fileCount <= 10) {
+            optimalThreads = Math.min(4, maxThreads);
+        } else if (fileCount <= 50) {
+            optimalThreads = Math.min(6, maxThreads);
+        } else {
+            optimalThreads = maxThreads;
+        }
+        
+        if (optimalThreads != maxThreads) {
+            setMaxThreads(optimalThreads);
+        }
+    }
+    
+    public boolean isDetailedLogging() {
+        return detailedLogging;
+    }
+
+    public void setDetailedLogging(boolean detailedLogging) {
+        this.detailedLogging = detailedLogging;
     }
     
     public enum FileType {
