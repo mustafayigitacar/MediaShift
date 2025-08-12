@@ -1,0 +1,544 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.text.Font?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" 
+      fx:controller="com.ffmpeg.gui.MainWindowController" 
+      spacing="10" styleClass="main-container"
+      minWidth="800" minHeight="600">
+    
+    <padding>
+        <Insets top="10" right="10" bottom="10" left="10"/>
+    </padding>
+    
+    <!-- Başlık -->
+    <HBox alignment="CENTER" styleClass="header">
+        <Label text="FFmpeg GUI - Video/Audio İşleme Aracı" styleClass="title-label"/>
+    </HBox>
+    
+    <!-- Ana İçerik Alanı -->
+    <SplitPane VBox.vgrow="ALWAYS" dividerPositions="0.25">
+        
+        <!-- Sol Panel - Dosya Gezgini -->
+        <VBox styleClass="file-explorer-panel" minWidth="200" maxWidth="400" prefWidth="250">
+            <HBox alignment="CENTER_LEFT" styleClass="explorer-header">
+                <Label text="Dosya Gezgini" styleClass="explorer-title"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="refreshExplorerBtn" text="⟳" styleClass="refresh-button" onAction="#refreshFileExplorer"/>
+            </HBox>
+            
+            <!-- Dosya Ağacı -->
+            <TreeView fx:id="fileTreeView" VBox.vgrow="ALWAYS" styleClass="file-tree"/>
+            
+            <!-- Hızlı Erişim -->
+            <VBox spacing="5" styleClass="quick-access">
+                <Label text="Hızlı Erişim:" styleClass="section-label"/>
+                <Button fx:id="desktopBtn" text="Masaüstü" styleClass="quick-access-btn" onAction="#navigateToDesktop"/>
+                <Button fx:id="documentsBtn" text="Belgeler" styleClass="quick-access-btn" onAction="#navigateToDocuments"/>
+                <Button fx:id="downloadsBtn" text="İndirilenler" styleClass="quick-access-btn" onAction="#navigateToDownloads"/>
+                <Button fx:id="videosBtn" text="Videolar" styleClass="quick-access-btn" onAction="#navigateToVideos"/>
+                <Button fx:id="musicBtn" text="Müzik" styleClass="quick-access-btn" onAction="#navigateToMusic"/>
+            </VBox>
+        </VBox>
+        
+        <!-- Sağ Panel - Ana İçerik -->
+        <VBox spacing="10" minWidth="500" VBox.vgrow="ALWAYS">
+            <!-- Ana Tab Pane -->
+            <TabPane fx:id="tabPane" VBox.vgrow="ALWAYS" styleClass="main-tab-pane">
+        
+        <!-- Video İşleme Tab'ı -->
+        <Tab fx:id="videoTab" text="Video İşleme" closable="false" styleClass="content-tab">
+            <VBox spacing="15" styleClass="tab-content" VBox.vgrow="ALWAYS">
+                <padding>
+                    <Insets top="15" right="15" bottom="15" left="15"/>
+                </padding>
+                
+                <!-- Giriş Dosyası -->
+                <VBox spacing="5" styleClass="input-section">
+                    <Label text="Giriş Video Dosyası:" styleClass="section-label"/>
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <TextField fx:id="inputVideoPath" promptText="Video dosyası seçin..." HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="selectInputVideoBtn" text="Dosya Seç" styleClass="action-button"/>
+                    </HBox>
+                </VBox>
+                
+                <!-- Çıkış Dosyası -->
+                <VBox spacing="5" styleClass="output-section">
+                    <Label text="Çıkış Video Dosyası:" styleClass="section-label"/>
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <TextField fx:id="outputVideoPath" promptText="Çıkış dosyası seçin..." HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="selectOutputVideoBtn" text="Dosya Seç" styleClass="action-button"/>
+                    </HBox>
+                </VBox>
+                
+                <!-- Video Ayarları -->
+                <VBox spacing="10" styleClass="settings-section">
+                    <Label text="Video Ayarları:" styleClass="section-label"/>
+                    <GridPane hgap="15" vgap="10">
+                        <columnConstraints>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                        </columnConstraints>
+                        
+                        <Label text="Format:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                        <ComboBox fx:id="videoFormatCombo" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Codec:" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                        <ComboBox fx:id="videoCodecCombo" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Bitrate (kbps):" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                        <Spinner fx:id="videoBitrateSpinner" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Genişlik:" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                        <Spinner fx:id="videoWidthSpinner" GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Yükseklik:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                        <Spinner fx:id="videoHeightSpinner" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                        
+                        <Label text="FPS:" GridPane.columnIndex="2" GridPane.rowIndex="2"/>
+                        <Spinner fx:id="videoFpsSpinner" GridPane.columnIndex="3" GridPane.rowIndex="2"/>
+                    </GridPane>
+                </VBox>
+                
+                <!-- İşlem Kontrolleri -->
+                <VBox spacing="10" styleClass="controls-section">
+                    <Button fx:id="startVideoConversionBtn" text="Video Dönüştürmeyi Başlat" 
+                           styleClass="primary-button" maxWidth="Infinity"/>
+                    <ProgressBar fx:id="videoProgressBar" maxWidth="Infinity"/>
+                </VBox>
+                
+                <!-- Alt Panel - Log ve Dosya Özellikleri -->
+                <SplitPane VBox.vgrow="ALWAYS" dividerPositions="0.6" minHeight="120" prefHeight="200">
+                    <!-- Sol Panel - Dosya Özellikleri -->
+                    <ScrollPane fitToWidth="true" styleClass="file-properties-panel" minWidth="250" prefWidth="300" VBox.vgrow="ALWAYS">
+                                        <VBox spacing="5" styleClass="properties-content">
+                    <Label text="Dosya Özellikleri:" styleClass="section-label"/>
+                    <VBox spacing="5">
+                        <!-- Video Teknik Özellikleri -->
+                        <Label text="Video Teknik Özellikleri:" styleClass="technical-section-label"/>
+                        <Label fx:id="videoCodecLabel" text="Codec: -" styleClass="property-label"/>
+                        <Label fx:id="videoResolutionLabel" text="Çözünürlük: -" styleClass="property-label"/>
+                        <Label fx:id="videoFpsLabel" text="FPS: -" styleClass="property-label"/>
+                        <Label fx:id="videoBitrateLabel" text="Video Bitrate: -" styleClass="property-label"/>
+                        <Label fx:id="videoDurationLabel" text="Süre: -" styleClass="property-label"/>
+                        <Label fx:id="videoAspectRatioLabel" text="Aspect Ratio: -" styleClass="property-label"/>
+                        <Label fx:id="videoPixelFormatLabel" text="Pixel Format: -" styleClass="property-label"/>
+                        <Label fx:id="videoColorSpaceLabel" text="Color Space: -" styleClass="property-label"/>
+                        
+                        <!-- Genel Dosya Özellikleri -->
+                        <Separator styleClass="properties-separator"/>
+                        <Label text="Genel Dosya Özellikleri:" styleClass="technical-section-label"/>
+                        <Label fx:id="videoFileNameLabel" text="Dosya Adı: -" styleClass="property-label"/>
+                        <Label fx:id="videoFileSizeLabel" text="Dosya Boyutu: -" styleClass="property-label"/>
+                        <Label fx:id="videoFileTypeLabel" text="Dosya Türü: -" styleClass="property-label"/>
+                        <Label fx:id="videoFilePathLabel" text="Dosya Yolu: -" styleClass="property-label"/>
+                        <Label fx:id="videoFileModifiedLabel" text="Değiştirilme Tarihi: -" styleClass="property-label"/>
+                        <Label fx:id="videoFileCreatedLabel" text="Oluşturulma Tarihi: -" styleClass="property-label"/>
+                        <Label fx:id="videoFilePermissionsLabel" text="İzinler: -" styleClass="property-label"/>
+                    </VBox>
+                </VBox>
+                    </ScrollPane>
+                    
+                    <!-- Sağ Panel - Log Alanı -->
+                    <VBox spacing="5" styleClass="log-section" minWidth="200">
+                        <Label text="İşlem Logları:" styleClass="section-label"/>
+                        <VBox spacing="5">
+                            <ProgressBar fx:id="videoLogProgressBar" maxWidth="Infinity" prefHeight="20"/>
+                            <Label fx:id="videoProgressLabel" text="Hazır" styleClass="progress-label"/>
+                        </VBox>
+                        <TextArea fx:id="videoLogArea" promptText="İşlem logları burada görünecek..." 
+                                 VBox.vgrow="ALWAYS" styleClass="log-area"/>
+                    </VBox>
+                </SplitPane>
+            </VBox>
+        </Tab>
+        
+        <!-- Audio İşleme Tab'ı -->
+        <Tab fx:id="audioTab" text="Audio İşleme" closable="false" styleClass="content-tab">
+            <VBox spacing="15" styleClass="tab-content" VBox.vgrow="ALWAYS">
+                <padding>
+                    <Insets top="15" right="15" bottom="15" left="15"/>
+                </padding>
+                
+                <!-- Giriş Dosyası -->
+                <VBox spacing="5" styleClass="input-section">
+                    <Label text="Giriş Audio Dosyası:" styleClass="section-label"/>
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <TextField fx:id="inputAudioPath" promptText="Audio dosyası seçin..." HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="selectInputAudioBtn" text="Dosya Seç" styleClass="action-button"/>
+                    </HBox>
+                </VBox>
+                
+                <!-- Çıkış Dosyası -->
+                <VBox spacing="5" styleClass="output-section">
+                    <Label text="Çıkış Audio Dosyası:" styleClass="section-label"/>
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <TextField fx:id="outputAudioPath" promptText="Çıkış dosyası seçin..." HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="selectOutputAudioBtn" text="Dosya Seç" styleClass="action-button"/>
+                    </HBox>
+                </VBox>
+                
+                <!-- Audio Ayarları -->
+                <VBox spacing="10" styleClass="settings-section">
+                    <Label text="Audio Ayarları:" styleClass="section-label"/>
+                    <GridPane hgap="15" vgap="10">
+                        <columnConstraints>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                        </columnConstraints>
+                        
+                        <Label text="Format:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                        <ComboBox fx:id="audioFormatCombo" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Codec:" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                        <ComboBox fx:id="audioCodecCombo" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Bitrate (kbps):" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                        <Spinner fx:id="audioBitrateSpinner" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Sample Rate (Hz):" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                        <Spinner fx:id="audioSampleRateSpinner" GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Kanallar:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                        <ComboBox fx:id="audioChannelsCombo" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                    </GridPane>
+                </VBox>
+                
+                <!-- İşlem Kontrolleri -->
+                <VBox spacing="10" styleClass="controls-section">
+                    <Button fx:id="startAudioConversionBtn" text="Audio Dönüştürmeyi Başlat" 
+                           styleClass="primary-button" maxWidth="Infinity"/>
+                    <ProgressBar fx:id="audioProgressBar" maxWidth="Infinity"/>
+                </VBox>
+                
+                <!-- Alt Panel - Log ve Dosya Özellikleri -->
+                <SplitPane VBox.vgrow="ALWAYS" dividerPositions="0.6" minHeight="120" prefHeight="200">
+                    <!-- Sol Panel - Dosya Özellikleri -->
+                    <ScrollPane fitToWidth="true" styleClass="file-properties-panel" minWidth="250" prefWidth="300" VBox.vgrow="ALWAYS">
+                        <VBox spacing="5" styleClass="properties-content">
+                            <Label text="Dosya Özellikleri:" styleClass="section-label"/>
+                            <VBox spacing="5">
+                                <!-- Audio Teknik Özellikleri -->
+                                <Label text="Audio Teknik Özellikleri:" styleClass="technical-section-label"/>
+                                <Label fx:id="audioCodecLabel" text="Codec: -" styleClass="property-label"/>
+                                <Label fx:id="audioSampleRateLabel" text="Sample Rate: -" styleClass="property-label"/>
+                                <Label fx:id="audioChannelsLabel" text="Kanallar: -" styleClass="property-label"/>
+                                <Label fx:id="audioBitrateLabel" text="Audio Bitrate: -" styleClass="property-label"/>
+                                <Label fx:id="audioDurationLabel" text="Süre: -" styleClass="property-label"/>
+                                <Label fx:id="audioChannelLayoutLabel" text="Channel Layout: -" styleClass="property-label"/>
+                                <Label fx:id="audioSampleFormatLabel" text="Sample Format: -" styleClass="property-label"/>
+                                
+                                <!-- Genel Dosya Özellikleri -->
+                                <Separator styleClass="properties-separator"/>
+                                <Label text="Genel Dosya Özellikleri:" styleClass="technical-section-label"/>
+                                <Label fx:id="audioFileNameLabel" text="Dosya Adı: -" styleClass="property-label"/>
+                                <Label fx:id="audioFileSizeLabel" text="Dosya Boyutu: -" styleClass="property-label"/>
+                                <Label fx:id="audioFileTypeLabel" text="Dosya Türü: -" styleClass="property-label"/>
+                                <Label fx:id="audioFilePathLabel" text="Dosya Yolu: -" styleClass="property-label"/>
+                                <Label fx:id="audioFileModifiedLabel" text="Değiştirilme Tarihi: -" styleClass="property-label"/>
+                                <Label fx:id="audioFileCreatedLabel" text="Oluşturulma Tarihi: -" styleClass="property-label"/>
+                                <Label fx:id="audioFilePermissionsLabel" text="İzinler: -" styleClass="property-label"/>
+                            </VBox>
+                        </VBox>
+                    </ScrollPane>
+                    
+                    <!-- Sağ Panel - Log Alanı -->
+                    <VBox spacing="5" styleClass="log-section" minWidth="200">
+                        <Label text="İşlem Logları:" styleClass="section-label"/>
+                        <VBox spacing="5">
+                            <ProgressBar fx:id="audioLogProgressBar" maxWidth="Infinity" prefHeight="20"/>
+                            <Label fx:id="audioProgressLabel" text="Hazır" styleClass="progress-label"/>
+                        </VBox>
+                        <TextArea fx:id="audioLogArea" promptText="İşlem logları burada görünecek..." 
+                                 VBox.vgrow="ALWAYS" styleClass="log-area"/>
+                    </VBox>
+                </SplitPane>
+            </VBox>
+        </Tab>
+        
+        <!-- Batch İşleme Tab'ı -->
+        <Tab fx:id="batchTab" text="Toplu İşlem" closable="false" styleClass="content-tab">
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="batch-scroll-pane">
+                <VBox spacing="15" styleClass="tab-content">
+                    <padding>
+                        <Insets top="15" right="15" bottom="15" left="15"/>
+                    </padding>
+                
+                <!-- Dosya Listesi -->
+                <VBox spacing="5" styleClass="file-list-section">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="İşlenecek Dosyalar:" styleClass="section-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="addBatchFilesBtn" text="Dosya Ekle" styleClass="action-button"/>
+                        <Button fx:id="removeBatchFileBtn" text="Dosya Kaldır" styleClass="action-button"/>
+                    </HBox>
+                    <ListView fx:id="batchFileList" VBox.vgrow="NEVER" prefHeight="150" maxHeight="200" styleClass="file-list"/>
+                </VBox>
+                
+                <!-- Çıkış Klasörü -->
+                <VBox spacing="5" styleClass="output-section">
+                    <Label text="Çıkış Klasörü:" styleClass="section-label"/>
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <TextField fx:id="batchOutputDir" promptText="Çıkış klasörü seçin..." HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="selectBatchOutputDirBtn" text="Klasör Seç" styleClass="action-button"/>
+                    </HBox>
+                </VBox>
+                
+                <!-- Ayarlar Bölümü -->
+                <VBox spacing="15" styleClass="settings-section" VBox.vgrow="ALWAYS">
+                    <Label text="Toplu İşlem Ayarları:" styleClass="section-label"/>
+                    
+                    <!-- Video Ayarları -->
+                    <VBox spacing="10" styleClass="video-settings-subsection">
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <Label text="Video Ayarları:" styleClass="subsection-label"/>
+                            <CheckBox fx:id="enableVideoSettingsCheck" text="Video ayarlarını kullan" 
+                                     styleClass="settings-checkbox"/>
+                        </HBox>
+                        <GridPane hgap="15" vgap="10" styleClass="settings-grid">
+                            <columnConstraints>
+                                <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                                <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                                <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                                <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                            </columnConstraints>
+                            
+                            <Label text="Format:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                            <ComboBox fx:id="batchVideoFormatCombo" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                            
+                            <Label text="Codec:" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                            <ComboBox fx:id="batchVideoCodecCombo" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                            
+                            <Label text="Bitrate (kbps):" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                            <Spinner fx:id="batchVideoBitrateSpinner" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                            
+                            <Label text="Genişlik:" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                            <Spinner fx:id="batchVideoWidthSpinner" GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+                            
+                            <Label text="Yükseklik:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                            <Spinner fx:id="batchVideoHeightSpinner" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                            
+                            <Label text="FPS:" GridPane.columnIndex="2" GridPane.rowIndex="2"/>
+                            <Spinner fx:id="batchVideoFpsSpinner" GridPane.columnIndex="3" GridPane.rowIndex="2"/>
+                        </GridPane>
+                    </VBox>
+                    
+                    <!-- Audio Ayarları -->
+                    <VBox spacing="10" styleClass="audio-settings-subsection">
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <Label text="Audio Ayarları:" styleClass="subsection-label"/>
+                            <CheckBox fx:id="enableAudioSettingsCheck" text="Audio ayarlarını kullan" 
+                                     styleClass="settings-checkbox"/>
+                        </HBox>
+                        <GridPane hgap="15" vgap="10" styleClass="settings-grid">
+                            <columnConstraints>
+                                <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                                <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                                <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                                <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                            </columnConstraints>
+                            
+                            <Label text="Format:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                            <ComboBox fx:id="batchAudioFormatCombo" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                            
+                            <Label text="Codec:" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                            <ComboBox fx:id="batchAudioCodecCombo" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                            
+                            <Label text="Bitrate (kbps):" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                            <Spinner fx:id="batchAudioBitrateSpinner" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                            
+                            <Label text="Sample Rate (Hz):" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                            <Spinner fx:id="batchAudioSampleRateSpinner" GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+                            
+                            <Label text="Kanallar:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                            <ComboBox fx:id="batchAudioChannelsCombo" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                        </GridPane>
+                    </VBox>
+                </VBox>
+                
+                <!-- İşlem Kontrolleri -->
+                <VBox spacing="10" styleClass="controls-section">
+                    <Button fx:id="startBatchProcessBtn" text="Toplu İşlemi Başlat" 
+                           styleClass="primary-button" maxWidth="Infinity"/>
+                    <ProgressBar fx:id="batchProgressBar" maxWidth="Infinity"/>
+                    <Label fx:id="batchProgressLabel" text="Hazır" styleClass="progress-label"/>
+                </VBox>
+                
+                <!-- Batch Log Alanı -->
+                <VBox spacing="5" styleClass="log-section" VBox.vgrow="ALWAYS">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="İşlem Logları:" styleClass="section-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="clearBatchLogsBtn" text="Logları Temizle" styleClass="secondary-button"/>
+                    </HBox>
+                    <TextArea fx:id="batchLogArea" editable="false" wrapText="true" 
+                             styleClass="log-area" VBox.vgrow="ALWAYS" prefHeight="200"/>
+                </VBox>
+                </VBox>
+            </ScrollPane>
+        </Tab>
+        
+        <!-- Ayarlar Tab'ı -->
+        <Tab fx:id="settingsTab" text="Ayarlar" closable="false" styleClass="content-tab">
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="settings-scroll-pane">
+                <VBox spacing="15" styleClass="tab-content">
+                    <padding>
+                        <Insets top="15" right="15" bottom="15" left="15"/>
+                    </padding>
+                
+                <!-- FFmpeg Ayarları -->
+                <VBox spacing="10" styleClass="settings-section">
+                    <Label text="FFmpeg Ayarları:" styleClass="section-label"/>
+                    <GridPane hgap="15" vgap="10">
+                        <columnConstraints>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="200"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                        </columnConstraints>
+                        
+                        <Label text="FFmpeg Yolu:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                        <TextField fx:id="ffmpegPathField" promptText="FFmpeg yürütülebilir dosyasının yolu" 
+                                 GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                        <Button fx:id="selectFFmpegPathBtn" text="Seç" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Otomatik Tespit:" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                        <CheckBox fx:id="autoDetectFFmpegCheck" text="FFmpeg'i otomatik tespit et" 
+                                GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Maksimum Thread:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                        <Spinner fx:id="maxThreadsSpinner" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                        
+                        <Label text="Loglama:" GridPane.columnIndex="0" GridPane.rowIndex="3"/>
+                        <CheckBox fx:id="enableLoggingCheck" text="Detaylı loglama etkinleştir" 
+                                GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+                    </GridPane>
+                </VBox>
+                
+                <!-- Dönüştürme Ayarları -->
+                <VBox spacing="10" styleClass="settings-section">
+                    <Label text="Dönüştürme Ayarları:" styleClass="section-label"/>
+                    <GridPane hgap="15" vgap="10">
+                        <columnConstraints>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="200"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                        </columnConstraints>
+                        
+                        <Label text="Varsayılan Video Formatı:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                        <ComboBox fx:id="defaultVideoFormatCombo" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Varsayılan Video Codec:" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                        <ComboBox fx:id="defaultVideoCodecCombo" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Varsayılan Audio Formatı:" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                        <ComboBox fx:id="defaultAudioFormatCombo" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Varsayılan Audio Codec:" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                        <ComboBox fx:id="defaultAudioCodecCombo" GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Varsayılan Video Bitrate:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                        <Spinner fx:id="defaultVideoBitrateSpinner" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                        
+                        <Label text="Varsayılan Audio Bitrate:" GridPane.columnIndex="2" GridPane.rowIndex="2"/>
+                        <Spinner fx:id="defaultAudioBitrateSpinner" GridPane.columnIndex="3" GridPane.rowIndex="2"/>
+                        
+                        <Label text="Varsayılan Video Çözünürlük:" GridPane.columnIndex="0" GridPane.rowIndex="3"/>
+                        <ComboBox fx:id="defaultVideoResolutionCombo" GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+                        
+                        <Label text="Varsayılan FPS:" GridPane.columnIndex="2" GridPane.rowIndex="3"/>
+                        <Spinner fx:id="defaultFpsSpinner" GridPane.columnIndex="3" GridPane.rowIndex="3"/>
+                    </GridPane>
+                </VBox>
+                
+                <!-- Arayüz Ayarları -->
+                <VBox spacing="10" styleClass="settings-section">
+                    <Label text="Arayüz Ayarları:" styleClass="section-label"/>
+                    <GridPane hgap="15" vgap="10">
+                        <columnConstraints>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="200"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                        </columnConstraints>
+                        
+                        <Label text="Dosya Gezgini Genişliği:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                        <Spinner fx:id="fileExplorerWidthSpinner" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Özellikler Paneli Genişliği:" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                        <Spinner fx:id="propertiesPanelWidthSpinner" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Otomatik Çıkış Yolu:" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                        <CheckBox fx:id="autoOutputPathCheck" text="Otomatik çıkış yolu oluştur" 
+                                GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Dosya Üzerine Yazma:" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                        <CheckBox fx:id="overwriteFilesCheck" text="Dosyaları üzerine yaz" 
+                                GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Tamamlandığında Bildirim:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                        <CheckBox fx:id="showCompletionNotificationCheck" text="Tamamlandığında bildirim göster" 
+                                GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                        
+                        <Label text="Hata Durumunda Bildirim:" GridPane.columnIndex="2" GridPane.rowIndex="2"/>
+                        <CheckBox fx:id="showErrorNotificationCheck" text="Hata durumunda bildirim göster" 
+                                GridPane.columnIndex="3" GridPane.rowIndex="2"/>
+                    </GridPane>
+                </VBox>
+                
+                <!-- Performans Ayarları -->
+                <VBox spacing="10" styleClass="settings-section">
+                    <Label text="Performans Ayarları:" styleClass="section-label"/>
+                    <GridPane hgap="15" vgap="10">
+                        <columnConstraints>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="200"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="100"/>
+                            <ColumnConstraints hgrow="SOMETIMES" minWidth="150"/>
+                        </columnConstraints>
+                        
+                        <Label text="Önbellek Boyutu (MB):" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                        <Spinner fx:id="cacheSizeSpinner" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                        
+                        <Label text="Maksimum Dosya Boyutu (GB):" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                        <Spinner fx:id="maxFileSizeSpinner" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                        
+                        <Label text="İşlem Önceliği:" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                        <ComboBox fx:id="processPriorityCombo" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                        
+                        <Label text="Bellek Kullanımı:" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                        <ComboBox fx:id="memoryUsageCombo" GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+                    </GridPane>
+                </VBox>
+                
+                <!-- Ayarları Kaydetme -->
+                <VBox spacing="10" styleClass="settings-section">
+                    <Label text="Ayarları Yönet:" styleClass="section-label"/>
+                    <HBox spacing="15" alignment="CENTER_LEFT">
+                        <Button fx:id="saveSettingsBtn" text="Ayarları Kaydet" styleClass="primary-button"/>
+                        <Button fx:id="loadSettingsBtn" text="Ayarları Yükle" styleClass="secondary-button"/>
+                        <Button fx:id="resetSettingsBtn" text="Varsayılana Sıfırla" styleClass="warning-button"/>
+                    </HBox>
+                </VBox>
+                </VBox>
+            </ScrollPane>
+        </Tab>
+    </TabPane>
+        </VBox>
+    </SplitPane>
+    
+    <!-- Durum Çubuğu -->
+    <HBox spacing="10" alignment="CENTER_LEFT" styleClass="status-bar">
+        <Label text="Hazır" styleClass="status-label"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label text="FFmpeg GUI v1.0.2" styleClass="version-label"/>
+    </HBox>
+    
+</VBox> 
