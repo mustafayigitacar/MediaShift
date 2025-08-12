@@ -7,6 +7,7 @@ import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import javafx.scene.control.SelectionMode;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
@@ -24,6 +25,7 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
 import javafx.stage.Modality;
 import javafx.geometry.Pos;
+import javafx.scene.layout.StackPane;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +47,7 @@ public class MainWindowController implements Initializable {
     @FXML private Tab videoTab;
     @FXML private Tab audioTab;
     @FXML private Tab batchTab;
+    @FXML private Tab cameraTab;
     @FXML private Tab settingsTab;
     
     @FXML private TextField inputVideoPath;
@@ -184,11 +187,55 @@ public class MainWindowController implements Initializable {
     @FXML private Button loadSettingsBtn;
     @FXML private Button resetSettingsBtn;
     
+    // Kamera kontrolleri
+    @FXML private ComboBox<CameraService.CameraDevice> cameraComboBox;
+    @FXML private Button refreshCamerasBtn;
+    @FXML private Button detectCamerasBtn;
+    @FXML private StackPane cameraPreviewPane;
+    @FXML private Button startPreviewBtn;
+    @FXML private Button stopPreviewBtn;
+    @FXML private Button startRecordingBtn;
+    @FXML private Button stopRecordingBtn;
+    @FXML private TextField recordingOutputDirField;
+    @FXML private Button selectRecordingDirBtn;
+    @FXML private ComboBox<String> recordingFormatCombo;
+    @FXML private ComboBox<String> recordingQualityCombo;
+    @FXML private Spinner<Integer> recordingFpsSpinner;
+    @FXML private Spinner<Integer> recordingBitrateSpinner;
+    @FXML private Spinner<Integer> segmentDurationSpinner;
+    @FXML private Label recordingStatusLabel;
+    @FXML private Label recordingTimeLabel;
+    @FXML private Label recordingFileLabel;
+    @FXML private TextArea cameraLogArea;
+    @FXML private Button clearCameraLogsBtn;
+    
+    // Segment yönetimi için yeni alanlar
+    @FXML private ListView<LiveRecordingTask.VideoSegment> segmentListView;
+    @FXML private Label segmentCountLabel;
+    @FXML private Button refreshSegmentsBtn;
+    @FXML private Button mergeSegmentsBtn;
+    @FXML private Button clearSegmentsBtn;
+    
     private Stage primaryStage;
     private FFmpegService ffmpegService;
     private FileExplorer fileExplorer;
     private MediaFileAnalyzer mediaAnalyzer;
+    private CameraService cameraService;
     private ObservableList<File> batchFiles = FXCollections.observableArrayList();
+    // LiveRecordingTask için değişkenler
+    private LiveRecordingTask liveRecordingTask;
+    private Thread recordingThread;
+    
+    // Segment listesi
+    private ObservableList<LiveRecordingTask.VideoSegment> recordedSegments = FXCollections.observableArrayList();
+    
+    // Aktif kayıt oturumu için değişkenler
+    private String currentRecordingSessionId = null;
+    private long recordingStartTime = 0;
+    
+    // Kamera için ek değişkenler
+    private javafx.scene.image.ImageView cameraImageView;
+    private javafx.animation.Timeline recordingTimelineTimer;
     
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -205,12 +252,12 @@ public class MainWindowController implements Initializable {
             ffmpegService.setDetailedLogging(enableLoggingCheck.isSelected());
         }
         
-        // Media analyzer'ı başlat
+        // Media analyzerı başlat
         String ffmpegPath = ffmpegService.getFfmpegPath();
-        String ffprobePath = "ffprobe"; // Default olarak PATH'ten al
+        String ffprobePath = "ffprobe"; // Default olarak PATHten al
         
         if (ffmpegPath != null && !ffmpegPath.equals("ffmpeg")) {
-            // FFmpeg path'i varsa, aynı dizinde ffprobe'u ara
+            // FFmpeg pathi varsa, aynı dizinde ffprobeu ara
             String ffprobeDir = new File(ffmpegPath).getParent();
             if (ffprobeDir != null) {
                 String possibleFFprobePath = ffprobeDir + File.separator + "ffprobe.exe";
@@ -225,11 +272,21 @@ public class MainWindowController implements Initializable {
         
         mediaAnalyzer = new MediaFileAnalyzer(ffprobePath);
         
+        // Kamera servisini başlat
+        cameraService = new CameraService(ffmpegService);
+        
         fileExplorer = new FileExplorer(fileTreeView);
         
         fileExplorer.setOnFileSelected(this::dosyaSecildi);
         
         setupWindowResizeListener();
+        
+        // İlk kamera tespitini yap
+        Platform.runLater(() -> {
+            if (cameraService != null) {
+                detectCameras();
+            }
+        });
         
         logger.info("Main window controller started successfully");
     }
@@ -242,7 +299,7 @@ public class MainWindowController implements Initializable {
         videoCodecCombo.getItems().addAll("H.264", "H.265", "VP9", "AV1", "MPEG-4");
         videoCodecCombo.setValue("H.264");
         
-        // Video spinner'ları editable yap
+        // Video spinnerları editable yap
         SimpleEditableSpinner.makeEditable(videoBitrateSpinner, 100, 50000, 1000);
         SimpleEditableSpinner.makeEditable(videoWidthSpinner, 1, 7680, 1920);
         SimpleEditableSpinner.makeEditable(videoHeightSpinner, 1, 4320, 1080);
@@ -255,7 +312,7 @@ public class MainWindowController implements Initializable {
         audioCodecCombo.getItems().addAll("AAC", "MP3", "FLAC", "Vorbis", "WMA");
         audioCodecCombo.setValue("AAC");
         
-        // Audio spinner'ları editable yap
+        // Audio spinnerları editable yap
         SimpleEditableSpinner.makeEditable(audioBitrateSpinner, 32, 320, 128);
         SimpleEditableSpinner.makeEditable(audioSampleRateSpinner, 8000, 192000, 44100);
         
@@ -283,7 +340,7 @@ public class MainWindowController implements Initializable {
         batchVideoCodecCombo.getItems().addAll("H.264", "H.265", "VP9", "AV1", "MPEG-4");
         batchVideoCodecCombo.setValue("H.264");
         
-        // Batch Video spinner'ları editable yap
+        // Batch Video spinnerları editable yap
         SimpleEditableSpinner.makeEditable(batchVideoBitrateSpinner, 100, 50000, 1000);
         SimpleEditableSpinner.makeEditable(batchVideoWidthSpinner, 1, 7680, 1920);
         SimpleEditableSpinner.makeEditable(batchVideoHeightSpinner, 1, 4320, 1080);
@@ -296,14 +353,14 @@ public class MainWindowController implements Initializable {
         batchAudioCodecCombo.getItems().addAll("AAC", "MP3", "FLAC", "Vorbis", "WMA");
         batchAudioCodecCombo.setValue("AAC");
         
-        // Batch Audio spinner'ları editable yap
+        // Batch Audio spinnerları editable yap
         SimpleEditableSpinner.makeEditable(batchAudioBitrateSpinner, 32, 320, 128);
         SimpleEditableSpinner.makeEditable(batchAudioSampleRateSpinner, 8000, 192000, 44100);
         
         batchAudioChannelsCombo.getItems().addAll("Mono (1)", "Stereo (2)", "5.1 (6)", "7.1 (8)");
         batchAudioChannelsCombo.setValue("Stereo (2)");
         
-        // Batch ayarları checkbox'ları
+        // Batch ayarları checkboxları
         enableVideoSettingsCheck.setSelected(false);
         enableAudioSettingsCheck.setSelected(false);
         
@@ -350,16 +407,19 @@ public class MainWindowController implements Initializable {
         memoryUsageCombo.getItems().addAll("Düşük", "Orta", "Yüksek");
         memoryUsageCombo.setValue("Orta");
         
-        // Progress bar'ları sıfırla
+        // Kamera kontrolleri
+        initializeCameraControls();
+        
+        // Progress barları sıfırla
         videoProgressBar.setProgress(0);
         audioProgressBar.setProgress(0);
         batchProgressBar.setProgress(0);
         
-        // Log progress bar'ları sıfırla
+        // Log progress barları sıfırla
         videoLogProgressBar.setProgress(0);
         audioLogProgressBar.setProgress(0);
         
-        // Progress label'ları sıfırla
+        // Progress labelları sıfırla
         videoProgressLabel.setText("Hazır");
         audioProgressLabel.setText("Hazır");
         
@@ -386,21 +446,21 @@ public class MainWindowController implements Initializable {
         clearBatchLogsBtn.setOnAction(e -> batchLogArea.clear());
         
         batchFileList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-            // Batch tab'ında dosya seçimi sadece kaldırma işlemi için kullanılıyor
+            // Batch tabında dosya seçimi sadece kaldırma işlemi için kullanılıyor
         });
         
-        // FFmpeg Ayarları Event Handler'ları
+        // FFmpeg Ayarları Event Handlerları
         selectFFmpegPathBtn.setOnAction(e -> selectFFmpegPath());
         autoDetectFFmpegCheck.setOnAction(e -> autoDetectFFmpeg());
         
-        // Dönüştürme Ayarları Event Handler'ları
+        // Dönüştürme Ayarları Event Handlerları
         defaultVideoFormatCombo.setOnAction(e -> applyDefaultVideoSettings());
         defaultVideoCodecCombo.setOnAction(e -> applyDefaultVideoSettings());
         defaultAudioFormatCombo.setOnAction(e -> applyDefaultAudioSettings());
         defaultAudioCodecCombo.setOnAction(e -> applyDefaultAudioSettings());
         defaultVideoResolutionCombo.setOnAction(e -> applyDefaultVideoSettings());
         
-        // Arayüz Ayarları Event Handler'ları
+        // Arayüz Ayarları Event Handlerları
         fileExplorerWidthSpinner.valueProperty().addListener((obs, oldVal, newVal) -> applyInterfaceSettings());
         propertiesPanelWidthSpinner.valueProperty().addListener((obs, oldVal, newVal) -> applyInterfaceSettings());
         autoOutputPathCheck.setOnAction(e -> applyInterfaceSettings());
@@ -408,13 +468,13 @@ public class MainWindowController implements Initializable {
         showCompletionNotificationCheck.setOnAction(e -> applyInterfaceSettings());
         showErrorNotificationCheck.setOnAction(e -> applyInterfaceSettings());
         
-        // Performans Ayarları Event Handler'ları
+        // Performans Ayarları Event Handlerları
         cacheSizeSpinner.valueProperty().addListener((obs, oldVal, newVal) -> applyPerformanceSettings());
         maxFileSizeSpinner.valueProperty().addListener((obs, oldVal, newVal) -> applyPerformanceSettings());
         processPriorityCombo.setOnAction(e -> applyPerformanceSettings());
         memoryUsageCombo.setOnAction(e -> applyPerformanceSettings());
         
-        // Genel Ayarlar Event Handler'ları
+        // Genel Ayarlar Event Handlerları
         maxThreadsSpinner.valueProperty().addListener((obs, oldVal, newVal) -> applyGeneralSettings());
         enableLoggingCheck.setOnAction(e -> {
             boolean detailedLogging = enableLoggingCheck.isSelected();
@@ -428,6 +488,9 @@ public class MainWindowController implements Initializable {
         saveSettingsBtn.setOnAction(e -> saveSettings());
         loadSettingsBtn.setOnAction(e -> loadSettings());
         resetSettingsBtn.setOnAction(e -> resetSettings());
+        
+        // Kamera event handlerları
+        setupCameraEventHandlers();
     }
     
     private void selectInputVideoFile() {
@@ -476,7 +539,7 @@ public class MainWindowController implements Initializable {
         // UI'ı devre dışı bırak
         startVideoConversionBtn.setDisable(true);
         
-        // Önceki binding'i kaldır
+        // Önceki bindingi kaldır
         videoProgressBar.progressProperty().unbind();
         videoProgressBar.setProgress(0);
         videoLogProgressBar.setProgress(0);
@@ -500,7 +563,7 @@ public class MainWindowController implements Initializable {
         videoProgressBar.progressProperty().bind(task.progressProperty());
         
         task.setOnSucceeded(e -> {
-            // Binding'i kaldır ve UI'ı güncelle
+            // Bindingi kaldır ve UI'ı güncelle
             videoProgressBar.progressProperty().unbind();
             videoLogArea.appendText("Video dönüştürme tamamlandı!\n");
             videoProgressLabel.setText("Video dönüştürme tamamlandı!");
@@ -510,7 +573,7 @@ public class MainWindowController implements Initializable {
         });
         
         task.setOnFailed(e -> {
-            // Binding'i kaldır ve UI'ı güncelle
+            // Bindingi kaldır ve UI'ı güncelle
             videoProgressBar.progressProperty().unbind();
             String errorMsg = task.getException() != null ? task.getException().getMessage() : "Bilinmeyen hata";
             videoLogArea.appendText("Video dönüştürme hatası: " + errorMsg + "\n");
@@ -521,7 +584,7 @@ public class MainWindowController implements Initializable {
         });
         
         task.setOnCancelled(e -> {
-            // Binding'i kaldır ve UI'ı güncelle
+            // Bindingi kaldır ve UI'ı güncelle
             videoProgressBar.progressProperty().unbind();
             videoLogArea.appendText("Video dönüştürme iptal edildi.\n");
             videoProgressLabel.setText("Video dönüştürme iptal edildi");
@@ -580,7 +643,7 @@ public class MainWindowController implements Initializable {
         // UI'ı devre dışı bırak
         startAudioConversionBtn.setDisable(true);
         
-        // Önceki binding'i kaldır
+        // Önceki bindingi kaldır
         audioProgressBar.progressProperty().unbind();
         audioProgressBar.setProgress(0);
         audioLogProgressBar.setProgress(0);
@@ -603,7 +666,7 @@ public class MainWindowController implements Initializable {
         audioProgressBar.progressProperty().bind(task.progressProperty());
         
         task.setOnSucceeded(e -> {
-            // Binding'i kaldır ve UI'ı güncelle
+            // Bindingi kaldır ve UI'ı güncelle
             audioProgressBar.progressProperty().unbind();
             audioLogArea.appendText("Audio dönüştürme tamamlandı!\n");
             audioProgressLabel.setText("Audio dönüştürme tamamlandı!");
@@ -613,7 +676,7 @@ public class MainWindowController implements Initializable {
         });
         
         task.setOnFailed(e -> {
-            // Binding'i kaldır ve UI'ı güncelle
+            // Bindingi kaldır ve UI'ı güncelle
             audioProgressBar.progressProperty().unbind();
             String errorMsg = task.getException() != null ? task.getException().getMessage() : "Bilinmeyen hata";
             audioLogArea.appendText("Audio dönüştürme hatası: " + errorMsg + "\n");
@@ -624,7 +687,7 @@ public class MainWindowController implements Initializable {
         });
         
         task.setOnCancelled(e -> {
-            // Binding'i kaldır ve UI'ı güncelle
+            // Bindingi kaldır ve UI'ı güncelle
             audioProgressBar.progressProperty().unbind();
             audioLogArea.appendText("Audio dönüştürme iptal edildi.\n");
             audioProgressLabel.setText("Audio dönüştürme iptal edildi");
@@ -776,7 +839,7 @@ public class MainWindowController implements Initializable {
         
         BatchProcessingTask task = new BatchProcessingTask(batchFiles, batchOutputDir.getText(), batchSettings);
         
-        // Log callback'i ayarla
+        // Log callbacki ayarla
         task.setLogCallback(message -> {
             if (batchLogArea != null) {
                 batchLogArea.appendText(message + "\n");
@@ -788,7 +851,7 @@ public class MainWindowController implements Initializable {
         // Thread sayısını optimize et
         ffmpegService.adjustThreadCountForBatch(batchFiles.size());
         
-        // Önceki binding'i kaldır
+        // Önceki bindingi kaldır
         batchProgressBar.progressProperty().unbind();
         batchProgressBar.setProgress(0);
         
@@ -796,9 +859,9 @@ public class MainWindowController implements Initializable {
         batchProgressBar.progressProperty().bind(task.progressProperty());
         
         task.setOnSucceeded(e -> {
-            // Binding'i kaldır ve UI'ı güncelle
+            // Bindingi kaldır ve UI'ı güncelle
             batchProgressBar.progressProperty().unbind();
-            batchProgressBar.setProgress(1.0); // Progress bar'ı tamamla
+            batchProgressBar.setProgress(1.0); // Progress barı tamamla
             batchProgressLabel.setText("Batch işlem tamamlandı!");
             
             // Log penceresine tamamlanma mesajı ekle
@@ -806,16 +869,16 @@ public class MainWindowController implements Initializable {
                 batchLogArea.appendText("\n=== BATCH İŞLEM TAMAMLANDI ===\n");
             }
             
-            // Kısa bir gecikme ile alert'i göster (progress bar'ın tamamlanması için)
+            // Kısa bir gecikme ile alerti göster (progress barın tamamlanması için)
             javafx.application.Platform.runLater(() -> {
                 showAlert("Başarılı", "Batch işlem başarıyla tamamlandı", Alert.AlertType.INFORMATION);
             });
         });
         
         task.setOnFailed(e -> {
-            // Binding'i kaldır ve UI'ı güncelle
+            // Bindingi kaldır ve UI'ı güncelle
             batchProgressBar.progressProperty().unbind();
-            batchProgressBar.setProgress(0); // Hata durumunda progress bar'ı sıfırla
+            batchProgressBar.setProgress(0); // Hata durumunda progress barı sıfırla
             batchProgressLabel.setText("Batch işlem başarısız: " + task.getException().getMessage());
             
             // Log penceresine hata mesajı ekle
@@ -824,7 +887,7 @@ public class MainWindowController implements Initializable {
                 batchLogArea.appendText("Hata: " + task.getException().getMessage() + "\n");
             }
             
-            // Kısa bir gecikme ile alert'i göster
+            // Kısa bir gecikme ile alerti göster
             javafx.application.Platform.runLater(() -> {
                 showAlert("Hata", "Batch işlem başarısız: " + task.getException().getMessage(), Alert.AlertType.ERROR);
             });
@@ -835,7 +898,7 @@ public class MainWindowController implements Initializable {
         });
         
         task.setOnCancelled(e -> {
-            // İptal durumunda da binding'i kaldır
+            // İptal durumunda da bindingi kaldır
             batchProgressBar.progressProperty().unbind();
             batchProgressBar.setProgress(0);
             batchProgressLabel.setText("Batch işlem iptal edildi");
@@ -887,7 +950,7 @@ public class MainWindowController implements Initializable {
         if (fileName.contains(".")) {
             baseName = fileName.substring(0, fileName.lastIndexOf('.'));
         }
-        // Format'ı küçük harfe çevir ve Türkçe karakterleri temizle
+        // Formatı küçük harfe çevir ve Türkçe karakterleri temizle
         String formatLower = format.toLowerCase()
             .replace("ı", "i")
             .replace("ğ", "g")
@@ -1301,7 +1364,7 @@ public class MainWindowController implements Initializable {
                     updateAudioTechnicalProperties(mediaInfo);
                     break;
                 case "batch":
-                    // Batch tab'ında dosya özellikleri gösterilmiyor
+                    // Batch tabında dosya özellikleri gösterilmiyor
                     break;
             }
         } catch (Exception e) {
@@ -1332,7 +1395,7 @@ public class MainWindowController implements Initializable {
                 clearAudioTechnicalProperties();
                 break;
             case "batch":
-                // Batch tab'ında dosya özellikleri gösterilmiyor
+                // Batch tabında dosya özellikleri gösterilmiyor
                 break;
         }
     }
@@ -1469,7 +1532,7 @@ public class MainWindowController implements Initializable {
             Integer defaultBitrate = defaultVideoBitrateSpinner.getValue();
             Double defaultFps = defaultFpsSpinner.getValue();
             
-            // Video tab'ındaki ayarları güncelle
+            // Video tabındaki ayarları güncelle
             if (videoFormatCombo != null) {
                 videoFormatCombo.setValue(defaultFormat);
             }
@@ -1525,7 +1588,7 @@ public class MainWindowController implements Initializable {
             String defaultCodec = defaultAudioCodecCombo.getValue();
             Integer defaultBitrate = defaultAudioBitrateSpinner.getValue();
             
-            // Audio tab'ındaki ayarları güncelle
+            // Audio tabındaki ayarları güncelle
             if (audioFormatCombo != null) {
                 audioFormatCombo.setValue(defaultFormat);
             }
@@ -1708,6 +1771,945 @@ public class MainWindowController implements Initializable {
             logger.error("Error resetting settings: " + e.getMessage());
             showAlert("Error", "Error resetting settings: " + e.getMessage(), Alert.AlertType.ERROR);
         }
+    }
+    
+    // ========================== KAMERA YÖNETİMİ ==========================
+    
+    private void initializeCameraControls() {
+        if (cameraComboBox == null) {
+            logger.warn("Camera combo box is null, skipping camera initialization");
+            return;
+        }
+        
+        // Kayıt formatları
+        recordingFormatCombo.getItems().addAll("MP4", "AVI", "MOV", "MKV");
+        recordingFormatCombo.setValue("MP4");
+        
+        // Video kaliteleri
+        recordingQualityCombo.getItems().addAll("720p", "1080p", "480p");
+        recordingQualityCombo.setValue("720p"); // HD default (daha güvenilir)
+        
+        // FPS spinner
+        SimpleEditableSpinner.makeEditable(recordingFpsSpinner, 15, 60, 30);
+        
+        // Bitrate spinner
+        SimpleEditableSpinner.makeEditable(recordingBitrateSpinner, 500, 15000, 3500); // 720p için optimize edilmiş bitrate
+        
+        // Segment duration spinner - varsayılan 5 saniye
+        SimpleEditableSpinner.makeEditable(segmentDurationSpinner, 5, 600, 5);
+        
+        // Varsayılan kayıt klasörü - Projenin kendi dizininde
+        String projectDir = System.getProperty("user.dir");
+        String defaultRecordingDir = projectDir + "/MediaShift_Recordings";
+        recordingOutputDirField.setText(defaultRecordingDir);
+        
+        // Kamera önizleme alanını hazırla
+        setupCameraPreview();
+        
+        // Segment listesini ayarla
+        setupSegmentList();
+        
+        // Segment refresh timerını başlat
+        startSegmentRefreshTimer();
+        
+        logger.info("Camera controls initialized");
+    }
+    
+    private void setupCameraPreview() {
+        if (cameraPreviewPane == null) {
+            logger.warn("Camera preview pane is null");
+            return;
+        }
+        
+        // ImageView oluştur - performans optimizasyonu
+        cameraImageView = new javafx.scene.image.ImageView();
+        
+        // Sabit boyut - dinamik binding performans düşürür
+        cameraImageView.setFitWidth(640);
+        cameraImageView.setFitHeight(480);
+        
+        // Performans ayarları - hızlı görünüm
+        cameraImageView.setPreserveRatio(true);
+        cameraImageView.setSmooth(false);   // Hızlı rendering için kapalı
+        cameraImageView.setCache(false);    // Memory leak önlemek için kapalı
+        
+        // CSS classı ekle
+        cameraImageView.getStyleClass().add("camera-image-view");
+        
+        // Preview paneye ekle ve merkeze hizala
+        cameraPreviewPane.getChildren().clear();
+        cameraPreviewPane.getChildren().add(cameraImageView);
+        
+        // ImageViewi StackPane içinde merkeze hizala
+        javafx.scene.layout.StackPane.setAlignment(cameraImageView, javafx.geometry.Pos.CENTER);
+        
+        logger.info("Camera preview setup completed");
+    }
+    
+    private void setupSegmentList() {
+        if (segmentListView == null) {
+            logger.warn("Segment list view is null");
+            return;
+        }
+        
+        // Segment listesini ayarla
+        segmentListView.setItems(recordedSegments);
+        segmentListView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        
+        // Segment cell factory - custom görünüm
+        segmentListView.setCellFactory(param -> new ListCell<LiveRecordingTask.VideoSegment>() {
+            @Override
+            protected void updateItem(LiveRecordingTask.VideoSegment segment, boolean empty) {
+                super.updateItem(segment, empty);
+                if (empty || segment == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(String.format("%s - %s (%s)", 
+                        segment.getFileName(), 
+                        segment.getFormattedDuration(),
+                        segment.getFormattedFileSize()));
+                }
+            }
+        });
+        
+        // Seçim değiştiğinde merge butonunu güncelle
+        segmentListView.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
+            updateMergeButtonState();
+        });
+        
+        // Başlangıçta segment sayısını güncelle
+        updateSegmentCount();
+        
+        logger.info("Segment list setup completed");
+    }
+    
+    private void setupCameraEventHandlers() {
+        // Kamera yenile
+        refreshCamerasBtn.setOnAction(e -> detectCameras());
+        detectCamerasBtn.setOnAction(e -> detectCameras());
+        
+        // Preview kontrolleri
+        startPreviewBtn.setOnAction(e -> startCameraPreview());
+        stopPreviewBtn.setOnAction(e -> stopCameraPreview());
+        
+        // Kayıt kontrolleri
+        startRecordingBtn.setOnAction(e -> startCameraRecording());
+        stopRecordingBtn.setOnAction(e -> stopCameraRecording());
+        
+        // Klasör seçimi
+        selectRecordingDirBtn.setOnAction(e -> selectRecordingDirectory());
+        
+        // Log temizleme
+        clearCameraLogsBtn.setOnAction(e -> {
+            if (cameraLogArea != null) {
+                cameraLogArea.clear();
+            }
+        });
+        
+        // Kamera seçimi değişikliği
+        cameraComboBox.setOnAction(e -> {
+            CameraService.CameraDevice selectedCamera = cameraComboBox.getValue();
+            if (selectedCamera != null) {
+                addCameraLog("Kamera seçildi: " + selectedCamera.getName());
+            }
+        });
+        
+        // Segment yönetimi event handlerları
+        refreshSegmentsBtn.setOnAction(e -> refreshSegments());
+        mergeSegmentsBtn.setOnAction(e -> mergeSelectedSegments());
+        clearSegmentsBtn.setOnAction(e -> clearSegmentList());
+    }
+    
+    private void detectCameras() {
+        addCameraLog("Kameralar tespit ediliyor...");
+        
+        cameraService.discoverCameras().thenAccept(cameras -> {
+            Platform.runLater(() -> {
+                cameraComboBox.getItems().clear();
+                cameraComboBox.getItems().addAll(cameras);
+                
+                if (!cameras.isEmpty()) {
+                    cameraComboBox.setValue(cameras.get(0));
+                    addCameraLog("Tespit edilen kamera sayısı: " + cameras.size());
+                    for (CameraService.CameraDevice camera : cameras) {
+                        addCameraLog("  - " + camera.getName() + " (" + camera.getDescription() + ")");
+                    }
+                } else {
+                    addCameraLog("Hiç kamera tespit edilemedi!");
+                }
+            });
+        }).exceptionally(throwable -> {
+            Platform.runLater(() -> {
+                addCameraLog("Kamera tespiti hatası: " + throwable.getMessage());
+                logger.error("Camera detection error", throwable);
+            });
+            return null;
+        });
+    }
+    
+    private void startCameraPreview() {
+        CameraService.CameraDevice selectedCamera = cameraComboBox.getValue();
+        if (selectedCamera == null) {
+            showAlert("Uyarı", "Lütfen önce bir kamera seçin", Alert.AlertType.WARNING);
+            return;
+        }
+        
+        addCameraLog("Kamera önizlemesi başlatılıyor: " + selectedCamera.getName());
+        
+        boolean success = cameraService.startPreview(selectedCamera, new CameraService.PreviewCallback() {
+            @Override
+            public void onFrameReceived(byte[] frameData) {
+                Platform.runLater(() -> {
+                    try {
+                        // Hızlı görüntü oluşturma - performans optimizasyonu
+                        javafx.scene.image.Image image = new javafx.scene.image.Image(
+                            new java.io.ByteArrayInputStream(frameData),
+                            640, 480, true, false  // sabit boyut, smooth=false
+                        );
+                        
+                        // ImageView'a güvenli şekilde set et
+                        if (cameraImageView != null) {
+                            cameraImageView.setImage(image);
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Error displaying frame", e);
+                    }
+                });
+            }
+            
+            @Override
+            public void onPreviewError(String error) {
+                Platform.runLater(() -> {
+                    addCameraLog("Önizleme hatası: " + error);
+                    logger.error("Camera preview error: {}", error);
+                });
+            }
+        });
+        
+        if (success) {
+            startPreviewBtn.setDisable(true);
+            stopPreviewBtn.setDisable(false);
+            startRecordingBtn.setDisable(false);
+            addCameraLog("Kamera önizlemesi başlatıldı");
+        } else {
+            addCameraLog("Kamera önizlemesi başlatılamadı!");
+        }
+    }
+    
+    private void stopCameraPreview() {
+        addCameraLog("Kamera önizlemesi durduruluyor...");
+        
+        cameraService.stopPreview();
+        
+        // UI'ı güncelle
+        startPreviewBtn.setDisable(false);
+        stopPreviewBtn.setDisable(true);
+        startRecordingBtn.setDisable(true);
+        stopRecordingBtn.setDisable(true);
+        
+        // Preview'ı temizle
+        if (cameraImageView != null) {
+            cameraImageView.setImage(null);
+        }
+        
+        addCameraLog("Kamera önizlemesi durduruldu");
+    }
+    
+    private void startCameraRecording() {
+        if (!cameraService.isPreviewActive()) {
+            showAlert("Uyarı", "Kayıt için önce kamera önizlemesini başlatın", Alert.AlertType.WARNING);
+            return;
+        }
+        
+        // *** KAMERA CİHAZINI ÖNİZLEME DURDURULMADAN ÖNCE SAKLA ***
+        String cameraDevice = cameraService.getSelectedCameraDevice();
+        if (cameraDevice == null || cameraDevice.isEmpty()) {
+            addCameraLog("Kamera cihazı seçilmemiş!");
+            return;
+        }
+        
+        // Yeni kayıt oturumu başlat
+        currentRecordingSessionId = java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        recordingStartTime = System.currentTimeMillis();
+        addCameraLog("Yeni kayıt oturumu başlatıldı: " + currentRecordingSessionId);
+        
+        // *** ÖNİZLEME DURDURULMUYOR - AYNI ANDA KAYIT VE ÖNİZLEME ***
+        addCameraLog("Kamera kayıt başlatılıyor (aynı anda önizleme + kayıt)...");
+        
+        // Kayıt parametrelerini ayarla
+        String outputDir = recordingOutputDirField.getText().trim();
+        
+        // Çıkış klasörü kontrolü - boş mu?
+        if (outputDir.isEmpty()) {
+            showAlert("Uyarı", "Lütfen kayıt klasörü belirtin.", Alert.AlertType.WARNING);
+            return;
+        }
+        
+        String format = recordingFormatCombo.getValue().toLowerCase();
+        String quality = recordingQualityCombo.getValue();
+        int fps = recordingFpsSpinner.getValue();
+        int bitrate = recordingBitrateSpinner.getValue();
+        int segmentDuration = segmentDurationSpinner.getValue();
+        
+        addCameraLog("Belirtilen kayıt klasörü: " + outputDir);
+        
+        // Çıkış klasörünü doğrula ve gerekirse oluştur - gelişmiş kontrol
+        try {
+            java.nio.file.Path dirPath = java.nio.file.Paths.get(outputDir);
+            
+            // Klasör mevcut mu kontrol et
+            if (!java.nio.file.Files.exists(dirPath)) {
+                addCameraLog("⚠️ Kayıt klasörü mevcut değil, oluşturuluyor: " + outputDir);
+                
+                // Klasörü oluşturmaya çalış
+                java.nio.file.Files.createDirectories(dirPath);
+                addCameraLog("✅ Kayıt klasörü başarıyla oluşturuldu: " + outputDir);
+                
+                // Kullanıcıyı bilgilendir
+                showAlert("Bilgi", 
+                    "Kayıt klasörü mevcut değildi ve otomatik olarak oluşturuldu:\n" + outputDir, 
+                    Alert.AlertType.INFORMATION);
+                    
+            } else {
+                addCameraLog("✅ Kayıt klasörü zaten mevcut: " + outputDir);
+            }
+            
+            // Klasörün yazılabilir olup olmadığını kontrol et
+            if (!java.nio.file.Files.isWritable(dirPath)) {
+                addCameraLog("❌ HATA: Kayıt klasörü yazılabilir değil: " + outputDir);
+                showAlert("Hata", 
+                    "Belirtilen klasöre yazma izniniz yok:\n" + outputDir + 
+                    "\n\nLütfen farklı bir klasör seçin veya yönetici olarak çalıştırın.", 
+                    Alert.AlertType.ERROR);
+                return;
+            }
+            
+            addCameraLog("✅ Kayıt klasörü yazılabilir: " + outputDir);
+            
+        } catch (java.nio.file.InvalidPathException e) {
+            addCameraLog("❌ HATA: Geçersiz kayıt klasörü yolu: " + outputDir);
+            showAlert("Hata", 
+                "Geçersiz klasör yolu:\n" + outputDir + 
+                "\n\nLütfen geçerli bir klasör yolu girin.\n\nÖrnek: C:\\Videolar", 
+                Alert.AlertType.ERROR);
+            return;
+        } catch (java.io.IOException e) {
+            addCameraLog("❌ HATA: Kayıt klasörü oluşturulamadı: " + e.getMessage());
+            showAlert("Hata", 
+                "Klasör oluşturulamadı:\n" + outputDir + 
+                "\n\nHata: " + e.getMessage() + 
+                "\n\nLütfen farklı bir konum deneyin.", 
+                Alert.AlertType.ERROR);
+            return;
+        } catch (SecurityException e) {
+            addCameraLog("❌ HATA: Kayıt klasörü oluşturma izni yok: " + e.getMessage());
+            showAlert("Hata", 
+                "Klasör oluşturma izni yok:\n" + outputDir + 
+                "\n\nLütfen yönetici olarak çalıştırın veya farklı bir konum seçin.", 
+                Alert.AlertType.ERROR);
+            return;
+        }
+        
+        addCameraLog("Çıkış klasörü: " + outputDir);
+        addCameraLog("Format: " + format + ", Kalite: " + quality + ", FPS: " + fps + ", Bitrate: " + bitrate);
+        addCameraLog("Segment süresi: " + segmentDuration + " saniye");
+        
+        // UI kontrollerini güncelle - kayıt başlamadan önce
+        startRecordingBtn.setDisable(true);
+        stopRecordingBtn.setDisable(false);
+        updateRecordingStatus("Kamera kayıt hazırlanıyor...");
+        
+        // CameraService üzerinden kayıt başlat - önizleme korunuyor
+        try {
+            // CameraService'e kayıt parametrelerini set et
+            cameraService.setRecordingParams(outputDir, format, quality, fps, bitrate, segmentDuration, "segment");
+            
+            // Kayıt başlat - önizleme durmadan
+            boolean recordingStarted = cameraService.startRecording(new CameraService.ExtendedRecordingCallback() {
+                @Override
+                public void onRecordingStarted() {
+                    Platform.runLater(() -> {
+                        updateRecordingStatus("Kamera kayıt yapılıyor");
+                        addCameraLog("Kamera kayıt başlatıldı (önizleme aktif)");
+                    });
+                }
+                
+                @Override
+                public void onRecordingStopped() {
+                    Platform.runLater(() -> {
+                        startRecordingBtn.setDisable(false);
+                        stopRecordingBtn.setDisable(true);
+                        updateRecordingStatus("Kayıt yapılmıyor");
+                        recordingFileLabel.setText("Dosya: -");
+                        recordingTimeLabel.setText("00:00:00");
+                        addCameraLog("Kamera kayıt durduruldu (önizleme aktif)");
+                        
+                        // Son segmentlerin UI'ya yansıması için gecikmeli güncelleme
+                        new Thread(() -> {
+                            try {
+                                Thread.sleep(2000); // 2 saniye bekle
+                                Platform.runLater(() -> {
+                                    updateSegmentList();
+                                    addCameraLog("Segment listesi güncellendi");
+                                });
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                        }).start();
+                    });
+                }
+                
+                @Override
+                public void onRecordingError(String error) {
+                    Platform.runLater(() -> {
+                        addCameraLog("Kayıt hatası: " + error);
+                        startRecordingBtn.setDisable(false);
+                        stopRecordingBtn.setDisable(true);
+                        updateRecordingStatus("Kayıt hatası");
+                        recordingTimeLabel.setText("00:00:00");
+                    });
+                }
+                
+                @Override
+                public void onSegmentCreated(String segmentPath) {
+                    Platform.runLater(() -> {
+                        recordingFileLabel.setText("Segment: " + new java.io.File(segmentPath).getName());
+                        addCameraLog("Yeni segment oluşturuldu: " + new java.io.File(segmentPath).getName());
+                        
+                        // Segment listesini güncelle
+                        updateSegmentList();
+                    });
+                }
+                
+                @Override
+                public void onTimeUpdate(String formattedTime) {
+                    Platform.runLater(() -> {
+                        recordingTimeLabel.setText(formattedTime);
+                    });
+                }
+                
+                @Override
+                public void onRecordingPaused() {
+                    Platform.runLater(() -> {
+                        updateRecordingStatus("Kayıt duraklatıldı");
+                        addCameraLog("Kamera kayıt duraklatıldı");
+                    });
+                }
+                
+                @Override
+                public void onRecordingResumed() {
+                    Platform.runLater(() -> {
+                        updateRecordingStatus("Kamera kayıt yapılıyor");
+                        addCameraLog("Kamera kayıt devam ediyor");
+                    });
+                }
+            });
+            
+            if (!recordingStarted) {
+                addCameraLog("Kamera kayıt başlatılamadı!");
+                startRecordingBtn.setDisable(false);
+                stopRecordingBtn.setDisable(true);
+                updateRecordingStatus("Kayıt hatası");
+                return;
+            }
+            
+        } catch (Exception e) {
+            addCameraLog("Kamera kayıt hatası: " + e.getMessage());
+            startRecordingBtn.setDisable(false);
+            stopRecordingBtn.setDisable(true);
+            updateRecordingStatus("Kayıt hatası");
+            return;
+        }
+    }
+    
+    private void stopCameraRecording() {
+        if (cameraService == null || !cameraService.isRecording()) {
+            addCameraLog("Aktif kayıt bulunamadı");
+            return;
+        }
+        
+        addCameraLog("Kamera kayıt durduruluyor...");
+        
+        // UI kontrollerini güncelle
+        startRecordingBtn.setDisable(false);
+        stopRecordingBtn.setDisable(true);
+        updateRecordingStatus("Kayıt durduruluyor...");
+        
+        // CameraService üzerinden kayıt durdur
+        try {
+            cameraService.stopRecording();
+            addCameraLog("Kamera kayıt durduruldu");
+            addCameraLog("Kayıt oturumu tamamlandı: " + currentRecordingSessionId);
+            
+            // Son segmentlerin UI'ya yansıması için bekle
+            Platform.runLater(() -> {
+                try {
+                    Thread.sleep(1000); // Segment list güncellemesi için bekle
+                    updateSegmentList(); // Son segmentleri güncelle
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            
+            // UI'ı güncelle
+            updateRecordingStatus("Kayıt yapılmıyor");
+            recordingFileLabel.setText("Dosya: -");
+            recordingTimeLabel.setText("00:00:00");
+            
+        } catch (Exception e) {
+            addCameraLog("Kayıt durdurma hatası: " + e.getMessage());
+            updateRecordingStatus("Kayıt durdurma hatası");
+        }
+    }
+    
+    private void selectRecordingDirectory() {
+        DirectoryChooser dirChooser = new DirectoryChooser();
+        dirChooser.setTitle("Kayıt Klasörü Seç");
+        
+        String currentDir = recordingOutputDirField.getText();
+        if (currentDir != null && !currentDir.isEmpty()) {
+            java.io.File dir = new java.io.File(currentDir);
+            if (dir.exists()) {
+                dirChooser.setInitialDirectory(dir);
+            }
+        }
+        
+        java.io.File selectedDir = dirChooser.showDialog(primaryStage);
+        if (selectedDir != null) {
+            recordingOutputDirField.setText(selectedDir.getAbsolutePath());
+            addCameraLog("Kayıt klasörü seçildi: " + selectedDir.getAbsolutePath());
+        }
+    }
+    
+    private void addCameraLog(String message) {
+        if (cameraLogArea != null) {
+            String timestamp = java.time.LocalDateTime.now().format(
+                java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")
+            );
+            Platform.runLater(() -> {
+                cameraLogArea.appendText("[" + timestamp + "] " + message + "\n");
+                cameraLogArea.setScrollTop(Double.MAX_VALUE);
+            });
+        }
+        logger.info("Camera: {}", message);
+    }
+    
+    public void shutdown() {
+        logger.info("Shutting down MainWindowController...");
+        
+        // Aktif kayıt işlemlerini durdur
+        if (liveRecordingTask != null) {
+            logger.info("Stopping active recording task...");
+            liveRecordingTask.cancel();
+            
+            // Recording threadin tamamlanmasını bekle
+            if (recordingThread != null && recordingThread.isAlive()) {
+                try {
+                    recordingThread.interrupt();
+                    recordingThread.join(3000); // 3 saniye bekle
+                    if (recordingThread.isAlive()) {
+                        logger.warn("Recording thread still alive after shutdown");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.warn("Interrupted while waiting for recording thread");
+                }
+            }
+            liveRecordingTask = null;
+            recordingThread = null;
+        }
+        
+        // Kamera servisini kapat (preview ve recordingi durdurur)
+        if (cameraService != null) {
+            logger.info("Shutting down camera service...");
+            cameraService.shutdown();
+        }
+        
+        // FFmpeg servisini kapat
+        if (ffmpegService != null) {
+            logger.info("Shutting down FFmpeg service...");
+            // FFmpegService için shutdown metodu yoksa basit cleanup yapalım
+            try {
+                ffmpegService = null;
+            } catch (Exception e) {
+                logger.warn("Error shutting down FFmpeg service", e);
+            }
+        }
+        
+        // File explorerı kapat
+        if (fileExplorer != null) {
+            logger.info("Shutting down file explorer...");
+            try {
+                fileExplorer = null;
+            } catch (Exception e) {
+                logger.warn("Error shutting down file explorer", e);
+            }
+        }
+        
+        // Media analyzerı kapat
+        if (mediaAnalyzer != null) {
+            logger.info("Shutting down media analyzer...");
+            try {
+                mediaAnalyzer = null;
+            } catch (Exception e) {
+                logger.warn("Error shutting down media analyzer", e);
+            }
+        }
+        
+        // Timeline timerı durdur
+        if (recordingTimelineTimer != null) {
+            logger.info("Stopping recording timeline timer...");
+            recordingTimelineTimer.stop();
+            recordingTimelineTimer = null;
+        }
+        
+        // Batch işlemlerini temizle
+        if (batchFiles != null) {
+            batchFiles.clear();
+        }
+        
+        // Segment listelerini temizle
+        if (recordedSegments != null) {
+            recordedSegments.clear();
+        }
+        
+        logger.info("MainWindowController shutdown completed");
+    }
+    
+    // Segment yönetimi metodları
+    private void updateSegmentCount() {
+        if (segmentCountLabel != null) {
+            int count = recordedSegments.size();
+            segmentCountLabel.setText(String.format("(%d segment)", count));
+        }
+    }
+    
+    /**
+     * Segment listesini güncelle - CameraService'den gelen segmentlerle
+     */
+    private void updateSegmentList() {
+        if (cameraService != null && segmentListView != null) {
+            try {
+                List<String> segments = cameraService.getRecordedSegments();
+                logger.info("Updating segment list, found {} segments from CameraService", segments != null ? segments.size() : 0);
+                
+                // CameraService segmentlerine ek olarak kayıt klasöründeki dosyaları da tara
+                String recordingDir = recordingOutputDirField.getText().trim();
+                if (!recordingDir.isEmpty()) {
+                    java.util.Set<String> allSegments = new java.util.HashSet<>();
+                    
+                    // CameraService segmentlerini ekle
+                    if (segments != null) {
+                        allSegments.addAll(segments);
+                    }
+                    
+                    // Kayıt klasöründeki tüm segment dosyalarını da ekle - SADECE AKTİF OTURUM
+                    try {
+                        java.nio.file.Path recordingPath = java.nio.file.Paths.get(recordingDir);
+                        if (java.nio.file.Files.exists(recordingPath) && currentRecordingSessionId != null) {
+                            java.nio.file.Files.list(recordingPath)
+                                .filter(path -> path.toString().endsWith(".mp4"))
+                                .filter(path -> path.getFileName().toString().contains("segment"))
+                                .filter(path -> {
+                                    // Sadece aktif kayıt oturumundaki segmentleri al
+                                    String fileName = path.getFileName().toString();
+                                    return fileName.contains(currentRecordingSessionId);
+                                })
+                                .forEach(path -> allSegments.add(path.toString()));
+                            
+                            logger.info("Found {} segments for current recording session {}", 
+                                allSegments.size() - (segments != null ? segments.size() : 0), currentRecordingSessionId);
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Error scanning recording directory: {}", e.getMessage());
+                    }
+                    
+                    segments = new java.util.ArrayList<>(allSegments);
+                }
+                
+                if (segments != null && !segments.isEmpty()) {
+                    // String segmentleri LiveRecordingTask.VideoSegmente dönüştür
+                    ObservableList<LiveRecordingTask.VideoSegment> videoSegments = FXCollections.observableArrayList();
+                    
+                    for (String segmentPath : segments) {
+                        try {
+                            java.io.File segmentFile = new java.io.File(segmentPath);
+                            if (segmentFile.exists()) {
+                                // Dosya boyutunu al
+                                long fileSize = segmentFile.length();
+                                
+                                // Basit bir VideoSegment oluştur
+                                LiveRecordingTask.VideoSegment segment = new LiveRecordingTask.VideoSegment(
+                                    segmentPath,
+                                    0, // Duration bilgisi yok, 0 olarak ayarla
+                                    java.time.LocalDateTime.now(),
+                                    fileSize
+                                );
+                                videoSegments.add(segment);
+                                logger.debug("Added segment to list: {} (size: {} bytes)", segmentPath, fileSize);
+                            } else {
+                                logger.warn("Segment file does not exist: {}", segmentPath);
+                            }
+                        } catch (Exception e) {
+                            logger.warn("Error creating video segment for: " + segmentPath, e);
+                        }
+                    }
+                    
+                    // UI'ı güncelle
+                    Platform.runLater(() -> {
+                        recordedSegments.clear();
+                        recordedSegments.addAll(videoSegments);
+                        updateSegmentCount();
+                        updateMergeButtonState();
+                        logger.info("Segment list updated with {} segments", videoSegments.size());
+                    });
+                } else {
+                    logger.info("No segments found, clearing segment list");
+                    Platform.runLater(() -> {
+                        recordedSegments.clear();
+                        updateSegmentCount();
+                        updateMergeButtonState();
+                    });
+                }
+            } catch (Exception e) {
+                logger.error("Error updating segment list", e);
+            }
+        } else {
+            logger.warn("Cannot update segment list: cameraService={}, segmentListView={}", 
+                       cameraService != null, segmentListView != null);
+        }
+    }
+    
+    private void updateMergeButtonState() {
+        if (mergeSegmentsBtn != null) {
+            int selectedCount = segmentListView.getSelectionModel().getSelectedItems().size();
+            mergeSegmentsBtn.setDisable(selectedCount < 2);
+        }
+    }
+    
+    @FXML
+    private void refreshSegments() {
+        if (cameraService != null) {
+            addCameraLog("Segment listesi yenileniyor...");
+            updateSegmentList();
+        } else {
+            addCameraLog("Kamera servisi bulunamadı!");
+        }
+    }
+    
+    /**
+     * Segment listesini periyodik olarak güncelle
+     */
+    private void startSegmentRefreshTimer() {
+        javafx.animation.Timeline segmentRefreshTimer = new javafx.animation.Timeline(
+            new javafx.animation.KeyFrame(javafx.util.Duration.seconds(2), event -> {
+                if (cameraService != null && cameraService.isRecording()) {
+                    updateSegmentList();
+                }
+            })
+        );
+        segmentRefreshTimer.setCycleCount(javafx.animation.Timeline.INDEFINITE);
+        segmentRefreshTimer.play();
+    }
+    
+    /**
+     * Kayıt durumunu güncelle
+     */
+    private void updateRecordingStatus(String status) {
+        if (recordingStatusLabel != null) {
+            Platform.runLater(() -> {
+                recordingStatusLabel.setText(status);
+                logger.info("Recording status updated: {}", status);
+            });
+        }
+    }
+    
+    @FXML
+    private void mergeSelectedSegments() {
+        // Önce son segmentlerin UI'ya yansıması için bekle ve güncelle
+        addCameraLog("Son segment'ler kontrol ediliyor...");
+        
+        // Segment listesini güncelleyip, son segmentlerin eklendiğinden emin ol
+        updateSegmentList();
+        
+        // Bir miktar bekle ki son segment'ler UI'ya yansısın
+        new Thread(() -> {
+            try {
+                Thread.sleep(1500); // UI güncellemesi için bekle
+                Platform.runLater(() -> {
+                    performMergeOperation();
+                });
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }).start();
+    }
+    
+    private void performMergeOperation() {
+        ObservableList<LiveRecordingTask.VideoSegment> selectedSegments = 
+            segmentListView.getSelectionModel().getSelectedItems();
+        
+        // Eğer hiç segment seçilmemişse tüm segmentleri seç
+        if (selectedSegments.isEmpty()) {
+            segmentListView.getSelectionModel().selectAll();
+            selectedSegments = segmentListView.getSelectionModel().getSelectedItems();
+            addCameraLog("Hiç segment seçilmediği için tüm segment'ler otomatik seçildi");
+        }
+        
+        if (selectedSegments.size() < 2) {
+            showAlert("Uyarı", "Lütfen birleştirmek için en az 2 segment seçin.", Alert.AlertType.WARNING);
+            return;
+        }
+        
+        addCameraLog("Birleştirilecek segment sayısı: " + selectedSegments.size());
+        
+        // Sağ taraftaki sistem yolunu kullan - dosya seçme işlemini atlayarak otomatik kaydet
+        String outputDir = recordingOutputDirField.getText().trim();
+        if (outputDir.isEmpty()) {
+            showAlert("Uyarı", "Lütfen sağ tarafta bir kayıt klasörü belirtin.", Alert.AlertType.WARNING);
+            return;
+        }
+        
+        addCameraLog("Belirtilen çıkış klasörü: " + outputDir);
+        
+        // Klasör yolunu doğrula ve gerekirse oluştur
+        try {
+            java.nio.file.Path dirPath = java.nio.file.Paths.get(outputDir);
+            
+            // Klasör mevcut mu kontrol et
+            if (!java.nio.file.Files.exists(dirPath)) {
+                addCameraLog("⚠️ Klasör mevcut değil, oluşturuluyor: " + outputDir);
+                
+                // Klasörü oluşturmaya çalış
+                java.nio.file.Files.createDirectories(dirPath);
+                addCameraLog("✅ Klasör başarıyla oluşturuldu: " + outputDir);
+                
+                // Kullanıcıyı bilgilendir
+                showAlert("Bilgi", 
+                    "Belirtilen klasör mevcut değildi ve otomatik olarak oluşturuldu:\n" + outputDir, 
+                    Alert.AlertType.INFORMATION);
+                    
+            } else {
+                addCameraLog("✅ Klasör zaten mevcut: " + outputDir);
+            }
+            
+            // Klasörün yazılabilir olup olmadığını kontrol et
+            if (!java.nio.file.Files.isWritable(dirPath)) {
+                addCameraLog("❌ HATA: Klasör yazılabilir değil: " + outputDir);
+                showAlert("Hata", 
+                    "Belirtilen klasöre yazma izniniz yok:\n" + outputDir + 
+                    "\n\nLütfen farklı bir klasör seçin veya yönetici olarak çalıştırın.", 
+                    Alert.AlertType.ERROR);
+                return;
+            }
+            
+            addCameraLog("✅ Klasör yazılabilir: " + outputDir);
+            
+        } catch (java.nio.file.InvalidPathException e) {
+            addCameraLog("❌ HATA: Geçersiz klasör yolu: " + outputDir);
+            showAlert("Hata", 
+                "Geçersiz klasör yolu:\n" + outputDir + 
+                "\n\nLütfen geçerli bir klasör yolu girin.\n\nÖrnek: C:\\Videolar", 
+                Alert.AlertType.ERROR);
+            return;
+        } catch (java.io.IOException e) {
+            addCameraLog("❌ HATA: Klasör oluşturulamadı: " + e.getMessage());
+            showAlert("Hata", 
+                "Klasör oluşturulamadı:\n" + outputDir + 
+                "\n\nHata: " + e.getMessage() + 
+                "\n\nLütfen farklı bir konum deneyin.", 
+                Alert.AlertType.ERROR);
+            return;
+        } catch (SecurityException e) {
+            addCameraLog("❌ HATA: Güvenlik izni yok: " + e.getMessage());
+            showAlert("Hata", 
+                "Klasör oluşturma izni yok:\n" + outputDir + 
+                "\n\nLütfen yönetici olarak çalıştırın veya farklı bir konum seçin.", 
+                Alert.AlertType.ERROR);
+            return;
+        }
+        
+        // Otomatik dosya ismi oluştur
+        String timestamp = java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String fileName = "merged_segments_" + timestamp + ".mp4";
+        
+        addCameraLog("Oluşturulacak dosya ismi: " + fileName);
+        
+        // Çıkış dosyası yolunu oluştur
+        java.nio.file.Path outputPath = java.nio.file.Paths.get(outputDir, fileName);
+        File outputFile = outputPath.toFile();
+        
+        addCameraLog("Tam çıkış yolu: " + outputFile.getAbsolutePath());
+        
+        // Segment yollarını topla
+        java.util.List<String> segmentPaths = new java.util.ArrayList<>();
+        for (LiveRecordingTask.VideoSegment segment : selectedSegments) {
+            segmentPaths.add(segment.getFilePath());
+        }
+        
+        // VideoSegmentMergerı başlat
+        VideoSegmentMerger merger = new VideoSegmentMerger(segmentPaths, outputFile.getAbsolutePath(), 
+            new VideoSegmentMerger.MergeCallback() {
+                @Override
+                public void onMergeStarted() {
+                    Platform.runLater(() -> {
+                        mergeSegmentsBtn.setDisable(true);
+                        addCameraLog("Segment birleştirme başlatıldı...");
+                    });
+                }
+                
+                @Override
+                public void onMergeProgress(double progress) {
+                    Platform.runLater(() -> {
+                        addCameraLog(String.format("Birleştirme ilerleme: %.1f%%", progress));
+                    });
+                }
+                
+                @Override
+                public void onMergeCompleted(String outputPath) {
+                    Platform.runLater(() -> {
+                        mergeSegmentsBtn.setDisable(false);
+                        addCameraLog("Segment birleştirme tamamlandı: " + outputPath);
+                        showAlert("Başarılı", "Segmentler başarıyla birleştirildi:\n" + outputPath, 
+                                Alert.AlertType.INFORMATION);
+                        
+                        // Kayıt oturumunu temizle
+                        currentRecordingSessionId = null;
+                        recordingStartTime = 0;
+                        addCameraLog("Kayıt oturumu temizlendi");
+                    });
+                }
+                
+                @Override
+                public void onMergeError(String error) {
+                    Platform.runLater(() -> {
+                        mergeSegmentsBtn.setDisable(false);
+                        addCameraLog("Birleştirme hatası: " + error);
+                        showAlert("Hata", "Segment birleştirme hatası:\n" + error, 
+                                Alert.AlertType.ERROR);
+                    });
+                }
+                
+                @Override
+                public void onMergeLog(String logMessage) {
+                    Platform.runLater(() -> addCameraLog(logMessage));
+                }
+            });
+        
+        // Background threadde çalıştır
+        Thread mergeThread = new Thread(merger);
+        mergeThread.setDaemon(true);
+        mergeThread.start();
+    }
+    
+    @FXML
+    private void clearSegmentList() {
+        recordedSegments.clear();
+        updateSegmentCount();
+        addCameraLog("Segment listesi temizlendi");
     }
 
 } 

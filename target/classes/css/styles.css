@@ -1,4 +1,4 @@
-/* FFmpeg GUI Ana Stil Dosyası */
+/* MediaShift Ana Stil Dosyası */
 
 /* Ana Container */
 .main-container {
@@ -1001,4 +1001,226 @@
     -fx-pref-height: 0px;
     -fx-min-height: 0px;
     -fx-max-height: 0px;
+}
+
+/* ========================== KAMERA STİLLERİ ========================== */
+
+/* Kamera seçimi section */
+.camera-selection-section {
+    -fx-background-color: #f8f9fa;
+    -fx-border-color: #dee2e6;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 10px;
+}
+
+/* Kamera önizleme section */
+.preview-section {
+    -fx-background-color: white;
+    -fx-border-color: #dee2e6;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 10px;
+}
+
+/* Kamera önizleme pane */
+.camera-preview {
+    -fx-background-color: #000000;
+    -fx-border-color: #dee2e6;
+    -fx-border-width: 2px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);
+}
+
+.preview-placeholder {
+    -fx-text-fill: #6c757d;
+    -fx-font-size: 14px;
+    -fx-font-style: italic;
+}
+
+/* Kayıt ayarları section */
+.recording-settings-section {
+    -fx-background-color: #f8f9fa;
+    -fx-border-color: #dee2e6;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 15px;
+}
+
+/* Kayıt durumu */
+.recording-status {
+    -fx-background-color: #e9ecef;
+    -fx-border-color: #ced4da;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 10px;
+    -fx-spacing: 5px;
+}
+
+.status-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #495057;
+}
+
+.time-label {
+    -fx-font-family: 'Courier New', monospace;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #dc3545;
+}
+
+.file-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #6c757d;
+    -fx-wrap-text: true;
+}
+
+/* Kamera kontrol butonları */
+.record-button {
+    -fx-background-color: linear-gradient(to bottom, #dc3545, #c82333);
+    -fx-text-fill: white;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 8px 16px;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(220,53,69,0.3), 3, 0, 0, 1);
+}
+
+.record-button:hover {
+    -fx-background-color: linear-gradient(to bottom, #c82333, #bd2130);
+    -fx-effect: dropshadow(gaussian, rgba(220,53,69,0.4), 4, 0, 0, 2);
+}
+
+.record-button:pressed {
+    -fx-background-color: linear-gradient(to bottom, #bd2130, #b21f2d);
+}
+
+.stop-button {
+    -fx-background-color: linear-gradient(to bottom, #6c757d, #5a6268);
+    -fx-text-fill: white;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 8px 16px;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(108,117,125,0.3), 3, 0, 0, 1);
+}
+
+.stop-button:hover {
+    -fx-background-color: linear-gradient(to bottom, #5a6268, #545b62);
+    -fx-effect: dropshadow(gaussian, rgba(108,117,125,0.4), 4, 0, 0, 2);
+}
+
+.stop-button:pressed {
+    -fx-background-color: linear-gradient(to bottom, #545b62, #4e555b);
+}
+
+/* Segment Management Styles */
+.segment-section {
+    -fx-background-color: white;
+    -fx-border-color: #e0e0e0;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 3, 0, 0, 1);
+}
+
+.segment-list {
+    -fx-background-color: #fafafa;
+    -fx-border-color: #ddd;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.segment-list .list-cell {
+    -fx-background-color: white;
+    -fx-border-color: #f0f0f0;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 8px;
+    -fx-text-fill: #333;
+}
+
+.segment-list .list-cell:selected {
+    -fx-background-color: #2196F3;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+.segment-list .list-cell:hover {
+    -fx-background-color: #e3f2fd;
+}
+
+.count-label {
+    -fx-text-fill: #666;
+    -fx-font-style: italic;
+    -fx-font-size: 11px;
+}
+
+.content-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.content-scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+
+.content-scroll-pane .scroll-bar {
+    -fx-background-color: #f5f5f5;
+}
+
+.content-scroll-pane .scroll-bar .thumb {
+    -fx-background-color: #c0c0c0;
+    -fx-background-radius: 5px;
+}
+
+.content-scroll-pane .scroll-bar .thumb:hover {
+    -fx-background-color: #a0a0a0;
+}
+
+.content-scroll-pane .scroll-bar .thumb:pressed {
+    -fx-background-color: #808080;
+}
+
+/* Kamera Önizleme İyileştirmeleri - 640x480 Sabit Boyut */
+.camera-preview {
+    -fx-background-color: #000000;
+    -fx-border-color: #333333;
+    -fx-border-width: 2px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-pref-width: 640;
+    -fx-pref-height: 480;
+    -fx-min-width: 640;
+    -fx-min-height: 480;
+    -fx-max-width: 640;
+    -fx-max-height: 480;
+    -fx-alignment: center;
+}
+
+.camera-preview-container {
+    -fx-alignment: center;
+    -fx-padding: 10px;
+}
+
+.camera-image-view {
+    -fx-fit-to-width: true;
+    -fx-fit-to-height: true;
+    -fx-preserve-ratio: true;
+    -fx-smooth: false;  /* Performans için smoothing kapalı */
+    -fx-cache: false;   /* Memory leak önlemek için cache kapalı */
+}
+
+.preview-placeholder {
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 14px;
+    -fx-font-style: italic;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
 }

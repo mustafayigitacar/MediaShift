@@ -13,7 +13,7 @@ if "%1"=="__FROM_CMD__" shift
 setlocal enabledelayedexpansion
 echo.
 echo =================================================================
-echo                       MediaShift v1.0
+echo                       MediaShift v1.0.3
 echo              Professional Media Converter
 echo =================================================================
 echo.

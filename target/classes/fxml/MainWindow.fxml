@@ -14,10 +14,7 @@
         <Insets top="10" right="10" bottom="10" left="10"/>
     </padding>
     
-    <!-- Başlık -->
-    <HBox alignment="CENTER" styleClass="header">
-        <Label text="FFmpeg GUI - Video/Audio İşleme Aracı" styleClass="title-label"/>
-    </HBox>
+   
     
     <!-- Ana İçerik Alanı -->
     <SplitPane VBox.vgrow="ALWAYS" dividerPositions="0.25">
@@ -51,10 +48,11 @@
         
         <!-- Video İşleme Tab'ı -->
         <Tab fx:id="videoTab" text="Video İşleme" closable="false" styleClass="content-tab">
-            <VBox spacing="15" styleClass="tab-content" VBox.vgrow="ALWAYS">
-                <padding>
-                    <Insets top="15" right="15" bottom="15" left="15"/>
-                </padding>
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="content-scroll-pane">
+                <VBox spacing="15" styleClass="tab-content">
+                    <padding>
+                        <Insets top="15" right="15" bottom="15" left="15"/>
+                    </padding>
                 
                 <!-- Giriş Dosyası -->
                 <VBox spacing="5" styleClass="input-section">
@@ -156,14 +154,16 @@
                     </VBox>
                 </SplitPane>
             </VBox>
+            </ScrollPane>
         </Tab>
         
         <!-- Audio İşleme Tab'ı -->
         <Tab fx:id="audioTab" text="Audio İşleme" closable="false" styleClass="content-tab">
-            <VBox spacing="15" styleClass="tab-content" VBox.vgrow="ALWAYS">
-                <padding>
-                    <Insets top="15" right="15" bottom="15" left="15"/>
-                </padding>
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="content-scroll-pane">
+                <VBox spacing="15" styleClass="tab-content">
+                    <padding>
+                        <Insets top="15" right="15" bottom="15" left="15"/>
+                    </padding>
                 
                 <!-- Giriş Dosyası -->
                 <VBox spacing="5" styleClass="input-section">
@@ -261,6 +261,7 @@
                     </VBox>
                 </SplitPane>
             </VBox>
+            </ScrollPane>
         </Tab>
         
         <!-- Batch İşleme Tab'ı -->
@@ -382,6 +383,127 @@
                              styleClass="log-area" VBox.vgrow="ALWAYS" prefHeight="200"/>
                 </VBox>
                 </VBox>
+            </ScrollPane>
+        </Tab>
+        
+        <!-- Kamera Tab'ı -->
+        <Tab fx:id="cameraTab" text="Kamera" closable="false" styleClass="content-tab">
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="content-scroll-pane">
+                <VBox spacing="15" styleClass="tab-content">
+                    <padding>
+                        <Insets top="15" right="15" bottom="15" left="15"/>
+                    </padding>
+                
+                <!-- Kamera Seçimi -->
+                <VBox spacing="5" styleClass="camera-selection-section">
+                    <Label text="Kamera Seçimi:" styleClass="section-label"/>
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <ComboBox fx:id="cameraComboBox" promptText="Kamera seçin..." HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="refreshCamerasBtn" text="Yenile" styleClass="action-button"/>
+                        <Button fx:id="detectCamerasBtn" text="Kameraları Tespit Et" styleClass="action-button"/>
+                    </HBox>
+                </VBox>
+                
+                <!-- Kamera Önizleme ve Kontroller -->
+                <HBox spacing="15" VBox.vgrow="ALWAYS">
+                    <!-- Sol Panel - Kamera Önizleme -->
+                    <VBox spacing="10" HBox.hgrow="ALWAYS" styleClass="preview-section">
+                        <Label text="Kamera Önizleme:" styleClass="section-label"/>
+                        <HBox alignment="CENTER" HBox.hgrow="ALWAYS">
+                            <StackPane fx:id="cameraPreviewPane" styleClass="camera-preview" 
+                                       prefWidth="640" prefHeight="480" 
+                                       minWidth="640" minHeight="480"
+                                       maxWidth="640" maxHeight="480">
+                                <Label text="Kamera önizlemesi burada görünecek..." styleClass="preview-placeholder"/>
+                            </StackPane>
+                        </HBox>
+                        
+                        <!-- Kamera Kontrolleri -->
+                        <HBox spacing="10" alignment="CENTER">
+                            <Button fx:id="startPreviewBtn" text="Önizlemeyi Başlat" styleClass="primary-button"/>
+                            <Button fx:id="stopPreviewBtn" text="Önizlemeyi Durdur" styleClass="secondary-button" disable="true"/>
+                            <Button fx:id="startRecordingBtn" text="Kayıt Başlat" styleClass="record-button" disable="true"/>
+                            <Button fx:id="stopRecordingBtn" text="Kayıt Durdur" styleClass="stop-button" disable="true"/>
+                        </HBox>
+                    </VBox>
+                    
+                    <!-- Sağ Panel - Kayıt Ayarları -->
+                    <VBox spacing="10" minWidth="300" maxWidth="350" styleClass="recording-settings-section">
+                        <Label text="Kayıt Ayarları:" styleClass="section-label"/>
+                        
+                        <!-- Çıkış Klasörü -->
+                        <VBox spacing="5">
+                            <Label text="Çıkış Klasörü:" styleClass="subsection-label"/>
+                            <HBox spacing="5" alignment="CENTER_LEFT">
+                                <TextField fx:id="recordingOutputDirField" promptText="Kayıt klasörü..." HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="selectRecordingDirBtn" text="Seç" styleClass="action-button"/>
+                            </HBox>
+                        </VBox>
+                        
+                        <!-- Kayıt Formatı -->
+                        <VBox spacing="5">
+                            <Label text="Video Formatı:" styleClass="subsection-label"/>
+                            <ComboBox fx:id="recordingFormatCombo" maxWidth="Infinity"/>
+                        </VBox>
+                        
+                        <!-- Video Kalitesi -->
+                        <VBox spacing="5">
+                            <Label text="Video Kalitesi:" styleClass="subsection-label"/>
+                            <ComboBox fx:id="recordingQualityCombo" maxWidth="Infinity"/>
+                        </VBox>
+                        
+                        <!-- FPS Ayarı -->
+                        <VBox spacing="5">
+                            <Label text="Frame Rate (FPS):" styleClass="subsection-label"/>
+                            <Spinner fx:id="recordingFpsSpinner" maxWidth="Infinity"/>
+                        </VBox>
+                        
+                        <!-- Bitrate Ayarı -->
+                        <VBox spacing="5">
+                            <Label text="Bitrate (kbps):" styleClass="subsection-label"/>
+                            <Spinner fx:id="recordingBitrateSpinner" maxWidth="Infinity"/>
+                        </VBox>
+                        
+                        <!-- Segment Süresi -->
+                        <VBox spacing="5">
+                            <Label text="Segment Süresi (saniye):" styleClass="subsection-label"/>
+                            <Spinner fx:id="segmentDurationSpinner" maxWidth="Infinity"/>
+                        </VBox>
+                        
+                        <!-- Kayıt Durumu -->
+                        <VBox spacing="5" styleClass="recording-status">
+                            <Label text="Kayıt Durumu:" styleClass="subsection-label"/>
+                            <Label fx:id="recordingStatusLabel" text="Kayıt yapılmıyor" styleClass="status-label"/>
+                            <Label fx:id="recordingTimeLabel" text="00:00:00" styleClass="time-label"/>
+                            <Label fx:id="recordingFileLabel" text="Dosya: -" styleClass="file-label"/>
+                        </VBox>
+                    </VBox>
+                </HBox>
+                
+                <!-- Segment Yönetimi -->
+                <VBox spacing="5" styleClass="segment-section" minHeight="150" prefHeight="200">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Video Segmentleri:" styleClass="section-label"/>
+                        <Label fx:id="segmentCountLabel" text="(0 segment)" styleClass="count-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="refreshSegmentsBtn" text="Yenile" styleClass="secondary-button"/>
+                        <Button fx:id="mergeSegmentsBtn" text="Seçilenleri Birleştir" styleClass="primary-button" disable="true"/>
+                        <Button fx:id="clearSegmentsBtn" text="Listeyi Temizle" styleClass="secondary-button"/>
+                    </HBox>
+                    <ListView fx:id="segmentListView" VBox.vgrow="ALWAYS" styleClass="segment-list"/>
+                </VBox>
+                
+                <!-- Alt Panel - Kamera Logları -->
+                <VBox spacing="5" styleClass="log-section" minHeight="120" prefHeight="150">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Kamera Logları:" styleClass="section-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="clearCameraLogsBtn" text="Logları Temizle" styleClass="secondary-button"/>
+                    </HBox>
+                    <TextArea fx:id="cameraLogArea" editable="false" wrapText="true" 
+                             styleClass="log-area" VBox.vgrow="ALWAYS"/>
+                </VBox>
+            </VBox>
             </ScrollPane>
         </Tab>
         
@@ -538,7 +660,7 @@
     <HBox spacing="10" alignment="CENTER_LEFT" styleClass="status-bar">
         <Label text="Hazır" styleClass="status-label"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Label text="FFmpeg GUI v1.0.2" styleClass="version-label"/>
+        <Label text="MediaShift v1.0.3" styleClass="version-label"/>
     </HBox>
     
 </VBox> 

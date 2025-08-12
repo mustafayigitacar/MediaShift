@@ -20,7 +20,7 @@ public class VideoConversionTask extends Task<Void> {
     private double totalDuration = 0.0; // Video toplam süresi
     private Instant startTime; // Dönüştürme başlangıç zamanı
     private volatile boolean isRunning = false; // Dönüştürme durumu
-    private volatile double actualProgress = 0.0; // FFmpeg'den gelen gerçek progress
+    private volatile double actualProgress = 0.0; // FFmpegden gelen gerçek progress
     
     public VideoConversionTask(String inputPath, String outputPath, String format, 
                              String codec, int bitrate, int width, int height, double fps,
@@ -71,7 +71,7 @@ public class VideoConversionTask extends Task<Void> {
             startTime = Instant.now();
             isRunning = true;
             
-            // Elapsed time counter thread'ini başlat
+            // Elapsed time counter threadini başlat
             Thread elapsedTimeThread = new Thread(() -> {
                 while (isRunning && !Thread.currentThread().isInterrupted()) {
                     try {
@@ -81,7 +81,7 @@ public class VideoConversionTask extends Task<Void> {
                             Duration elapsed = Duration.between(startTime, Instant.now());
                             double elapsedSeconds = elapsed.toMillis() / 1000.0;
                             
-                            // Gerçek FFmpeg progress'ini kullan, elapsed time sadece süre için
+                            // Gerçek FFmpeg progressini kullan, elapsed time sadece süre için
                             String progressText = String.format("Video dönüştürülüyor... %.1f saniye geçti (%%%.1f)", 
                                 elapsedSeconds, actualProgress * 100);
                             
@@ -109,7 +109,7 @@ public class VideoConversionTask extends Task<Void> {
             FFmpegService.ProgressCallback callback = new FFmpegService.ProgressCallback() {
                 @Override
                 public void onProgress(double currentTime) {
-                    // FFmpeg'den gelen gerçek progress'i kaydet
+                    // FFmpegden gelen gerçek progressi kaydet
                     if (totalDuration > 0) {
                         actualProgress = Math.min(currentTime / totalDuration, 1.0);
                     } else {
@@ -120,18 +120,18 @@ public class VideoConversionTask extends Task<Void> {
             
             ffmpegService.convertVideo(params, callback).get();
             
-            // Dönüştürme tamamlandı, counter'ı durdur
+            // Dönüştürme tamamlandı, counterı durdur
             isRunning = false;
             actualProgress = 1.0; // Tamamlandığında %100 göster
             
-            // Final elapsed time'ı hesapla
+            // Final elapsed time hesapla
             Duration totalElapsed = Duration.between(startTime, Instant.now());
             double totalElapsedSeconds = totalElapsed.toMillis() / 1000.0;
             
             logger.info("Video conversion completed: {} (Total time: {:.1f} seconds)", params.getOutputPath(), totalElapsedSeconds);
             
         } catch (Exception e) {
-            // Hata durumunda da counter'ı durdur
+            // Hata durumunda da counterı durdur
             isRunning = false;
             logger.error("Video conversion error", e);
             throw e;
@@ -174,7 +174,7 @@ public class VideoConversionTask extends Task<Void> {
     protected void failed() {
         super.failed();
         
-        // Hata durumunda da elapsed time'ı göster
+        // Hata durumunda da elapsed time göster
         isRunning = false;
         if (startTime != null) {
             Duration totalElapsed = Duration.between(startTime, Instant.now());
@@ -204,7 +204,7 @@ public class VideoConversionTask extends Task<Void> {
     protected void cancelled() {
         super.cancelled();
         
-        // İptal durumunda da elapsed time'ı göster
+        // İptal durumunda da elapsed time göster
         isRunning = false;
         if (startTime != null) {
             Duration totalElapsed = Duration.between(startTime, Instant.now());

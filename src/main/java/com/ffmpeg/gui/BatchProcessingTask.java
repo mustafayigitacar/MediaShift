@@ -56,7 +56,7 @@ public class BatchProcessingTask extends Task<Void> {
         startTime = Instant.now();
         isRunning = true;
         
-        // Başlangıç progress'ini ayarla
+        // Başlangıç progressini ayarla
         updateProgress(0, 1.0);
         updateMessage("Batch işlem başlatılıyor...");
         
@@ -67,15 +67,15 @@ public class BatchProcessingTask extends Task<Void> {
             FFmpegService.BatchProcessingCallback callback = new FFmpegService.BatchProcessingCallback() {
                 @Override
                 public void onFileProgress(int currentFile, int totalFilesParam, double progress) {
-                    // Progress hesaplaması: tamamlanan dosyalar + mevcut dosyanın progress'i
+                    // Progress hesaplaması: tamamlanan dosyalar + mevcut dosyanın progress
                     double completedFiles = Math.max(0, currentFile);
                     double currentFileProgress = Math.max(0, Math.min(1.0, progress));
                     double overallProgress = (completedFiles + currentFileProgress) / totalFiles;
                     
-                    // Progress'i 0-1 arasında sınırla
+                    // Progressi 0-1 arasında sınırla
                     overallProgress = Math.max(0, Math.min(1.0, overallProgress));
                     
-                    // Elapsed time'ı hesapla
+                    // Elapsed time hesapla
                     Duration elapsed = Duration.between(finalStartTime, Instant.now());
                     double elapsedSeconds = elapsed.toMillis() / 1000.0;
                     
@@ -111,23 +111,23 @@ public class BatchProcessingTask extends Task<Void> {
             log("FFmpegService batch processing başlatılıyor...");
             ffmpegService.processBatchFiles(files, outputDir, batchSettings, callback).get(120, java.util.concurrent.TimeUnit.MINUTES);
             
-            // Batch işlem tamamlandı, counter'ı durdur
+            // Batch işlem tamamlandı counterı durdur
             isRunning = false;
             
-            // Final elapsed time'ı hesapla
+            // Final elapsed time hesapla
             Duration totalElapsed = Duration.between(startTime, Instant.now());
             double totalElapsedSeconds = totalElapsed.toMillis() / 1000.0;
             
             log("Batch processing completed (Total time: " + String.format("%.1f", totalElapsedSeconds) + " seconds)");
             
         } catch (java.util.concurrent.TimeoutException e) {
-            // Timeout durumunda da counter'ı durdur
+            // Timeout durumunda da counterı durdur
             isRunning = false;
             log("HATA: Batch işlem timeout (120 dakika)");
             logger.error("Batch işlem timeout (120 dakika)", e);
             throw new RuntimeException("Batch işlem timeout: 120 dakika içinde tamamlanamadı", e);
         } catch (Exception e) {
-            // Hata durumunda da counter'ı durdur
+            // Hata durumunda da counterı durdur
             isRunning = false;
             log("HATA: Batch işlem hatası - " + e.getMessage());
             logger.error("Batch işlem hatası", e);
@@ -147,16 +147,16 @@ public class BatchProcessingTask extends Task<Void> {
         // İşlem durumunu durdur
         isRunning = false;
         
-        // Final elapsed time'ı göster ve progress'i tamamla
+        // Final elapsed time göster ve progressi tamamla
         if (startTime != null) {
             Duration totalElapsed = Duration.between(startTime, Instant.now());
             double totalElapsedSeconds = totalElapsed.toMillis() / 1000.0;
             String finalMessage = String.format("Batch işlem tamamlandı! (Toplam süre: %.1f saniye)", totalElapsedSeconds);
             updateMessage(finalMessage);
-            updateProgress(1.0, 1.0); // Progress'i tamamla
+            updateProgress(1.0, 1.0); // Progressi tamamla
         } else {
             updateMessage("Batch işlem tamamlandı!");
-            updateProgress(1.0, 1.0); // Progress'i tamamla
+            updateProgress(1.0, 1.0); // Progressi tamamla
         }
     }
     
@@ -164,7 +164,7 @@ public class BatchProcessingTask extends Task<Void> {
     protected void failed() {
         super.failed();
         
-        // Hata durumunda da elapsed time'ı göster
+        // Hata durumunda da elapsed time göster
         isRunning = false;
         if (startTime != null) {
             Duration totalElapsed = Duration.between(startTime, Instant.now());
@@ -183,7 +183,7 @@ public class BatchProcessingTask extends Task<Void> {
     protected void cancelled() {
         super.cancelled();
         
-        // İptal durumunda da elapsed time'ı göster
+        // İptal durumunda da elapsed time göster
         isRunning = false;
         if (startTime != null) {
             Duration totalElapsed = Duration.between(startTime, Instant.now());

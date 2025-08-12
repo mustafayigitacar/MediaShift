@@ -19,12 +19,12 @@ public class Main extends Application {
     @Override
     public void start(Stage primaryStage) {
         try {
-            logger.info("FFmpeg GUI application starting...");
+            logger.info("MediaShift application starting...");
             
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/MainWindow.fxml"));
             Parent root = loader.load();
             
-            MainWindowController controller = loader.getController();
+            controller = loader.getController();
             controller.setPrimaryStage(primaryStage);
             
             Scene scene = new Scene(root, 1200, 800);
@@ -45,6 +45,21 @@ public class Main extends Application {
                 logger.warn("Error loading application icon", e);
             }
             
+            // Window close event handler - kamera kapanmasını garantile
+            primaryStage.setOnCloseRequest(event -> {
+                logger.info("Application close requested, shutting down services...");
+                
+                // Controllerı kapat
+                if (controller != null) {
+                    controller.shutdown();
+                }
+                
+                // Platformu kapat
+                javafx.application.Platform.exit();
+                
+                logger.info("Application shutdown completed");
+            });
+            
             primaryStage.setScene(scene);
             primaryStage.setMinWidth(800);
             primaryStage.setMinHeight(600);
@@ -52,7 +67,7 @@ public class Main extends Application {
             primaryStage.setMaximized(true);
             primaryStage.show();
             
-            logger.info("FFmpeg GUI application started successfully");
+            logger.info("MediaShift application started successfully");
             
         } catch (IOException e) {
             logger.error("Error loading FXML file", e);
@@ -74,10 +89,49 @@ public class Main extends Application {
     
     @Override
     public void stop() {
-        logger.info("FFmpeg GUI application shutting down...");
+        logger.info("MediaShift application shutting down...");
+        
+        // Controllerı kapat
+        if (controller != null) {
+            controller.shutdown();
+        }
     }
     
+    private MainWindowController controller;
+    
     public static void main(String[] args) {
+        // JVM shutdown hook ekle - ani kapanma durumunda cleanup
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            logger.info("JVM shutdown hook triggered - performing emergency cleanup");
+            
+            // Emergency cleanup - tüm FFmpeg processlerini sonlandır
+            try {
+                // Platform bağımsız process termination
+                String os = System.getProperty("os.name").toLowerCase();
+                ProcessBuilder pb;
+                
+                if (os.contains("win")) {
+                    // Windowsta tüm ffmpeg processlerini sonlandır
+                    pb = new ProcessBuilder("taskkill", "/F", "/IM", "ffmpeg.exe");
+                } else {
+                    // Unix-like sistemlerde
+                    pb = new ProcessBuilder("pkill", "-f", "ffmpeg");
+                }
+                
+                Process cleanup = pb.start();
+                boolean finished = cleanup.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+                
+                if (!finished) {
+                    cleanup.destroyForcibly();
+                }
+                
+                logger.info("Emergency FFmpeg cleanup completed");
+                
+            } catch (Exception e) {
+                logger.warn("Error during emergency cleanup", e);
+            }
+        }, "MediaShift-Emergency-Cleanup"));
+        
         launch(args);
     }
 } 

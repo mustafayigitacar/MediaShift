@@ -12,14 +12,14 @@ import javafx.scene.input.KeyEvent;
 public class SimpleEditableSpinner {
     
     /**
-     * Integer spinner'ı editable yapar
+     * Integer spinnerı editable yapar
      */
     public static void makeEditable(Spinner<Integer> spinner, int min, int max, int defaultValue) {
         SpinnerValueFactory<Integer> valueFactory = new SpinnerValueFactory.IntegerSpinnerValueFactory(min, max, defaultValue);
         spinner.setValueFactory(valueFactory);
         spinner.setEditable(true);
         
-        // Text field'ı al
+        // Text fieldı al
         TextField editor = spinner.getEditor();
         
         // Enter tuşuna basıldığında değeri güncelle
@@ -62,14 +62,14 @@ public class SimpleEditableSpinner {
     }
     
     /**
-     * Double spinner'ı editable yapar
+     * Double spinnerı editable yapar
      */
     public static void makeEditable(Spinner<Double> spinner, double min, double max, double defaultValue, double step) {
         SpinnerValueFactory<Double> valueFactory = new SpinnerValueFactory.DoubleSpinnerValueFactory(min, max, defaultValue, step);
         spinner.setValueFactory(valueFactory);
         spinner.setEditable(true);
         
-        // Text field'ı al
+        // Text fieldı al
         TextField editor = spinner.getEditor();
         
         // Enter tuşuna basıldığında değeri güncelle

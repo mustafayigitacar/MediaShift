@@ -107,19 +107,19 @@ public class MediaFileAnalyzer {
         }
         
         // Color space bilgileri - FFmpeg kütüphanesinde bu alanlar mevcut değil
-        // Bu bilgileri tags'dan almaya çalışacağız
+        // Bu bilgileri tagsdan almaya çalışacağız
         
         // Profile ve level bilgileri
         if (stream.profile != null) {
             videoInfo.setProfile(stream.profile);
         }
         
-        // Level bilgisi int olarak geliyor, 0'dan büyükse String'e çevir
+        // Level bilgisi int olarak geliyor, 0'dan büyükse Stringe çevir
         if (stream.level > 0) {
             videoInfo.setLevel(String.valueOf(stream.level));
         }
         
-        // Tags'dan ek bilgiler
+        // Tagsdan ek bilgiler
         if (stream.tags != null) {
             videoInfo.setLanguage(stream.tags.get("language"));
             videoInfo.setTitle(stream.tags.get("title"));
@@ -153,7 +153,7 @@ public class MediaFileAnalyzer {
             audioInfo.setProfile(stream.profile);
         }
         
-        // Tags'dan ek bilgiler
+        // Tagsdan ek bilgiler
         if (stream.tags != null) {
             audioInfo.setLanguage(stream.tags.get("language"));
             audioInfo.setTitle(stream.tags.get("title"));

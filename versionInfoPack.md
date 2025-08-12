@@ -14,3 +14,8 @@
 ´ Uygulama toplu işlem sekmesinin işlem çubuğu donuyordu ve çalışması senkron değildi. Logları detaylı şekilde göremiyorduk.
    Bu hatalar fixlendi.
  Artık loglar için ayrı bir blok sayfanın en altında mevcut. ´
+
+## V1.0.3
+
+´ Uygulama için canlı kamera ve kayıt sistemi eklendi. Video çekiliyor ayarlanmış segment süresine göre 
+bölünüyor ve seçtiğimiz videolar birleştiriliyor. ´

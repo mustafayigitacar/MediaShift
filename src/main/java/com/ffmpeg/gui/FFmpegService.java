@@ -48,7 +48,7 @@ public class FFmpegService {
                 ffmpegPath = "ffmpeg";
             }
             
-            // FFprobe path'ini düzgün şekilde ayarla
+            // FFprobe pathini düzgün şekilde ayarla
             if (ffmpegPath.equals("ffmpeg")) {
                 ffprobePath = "ffprobe";
             } else {
@@ -196,7 +196,7 @@ public class FFmpegService {
                 }
                 
                 String outputPath = params.getOutputPath();
-                // Format'ı küçük harfe çevir ve Türkçe karakterleri temizle
+                // Formatı küçük harfe çevir ve Türkçe karakterleri temizle
                 String format = params.getFormat().toLowerCase()
                     .replace("ı", "i")
                     .replace("ğ", "g")
@@ -230,19 +230,19 @@ public class FFmpegService {
                 String videoCodec = formatIcinVideoCodecBul(format, params.getCodec());
                 String audioCodec = formatIcinAudioCodecBul(format);
                 
-                // FFmpeg builder'ı oluştur
+                // FFmpeg builderı oluştur
                 FFmpegBuilder builder = new FFmpegBuilder();
                 builder.setInput(params.getInputPath());
                 builder.overrideOutputFiles(true);
                 
-                // Output builder'ı oluştur ve ayarları ekle
+                // Output builderı oluştur ve ayarları ekle
                 FFmpegOutputBuilder outputBuilder = builder.addOutput(outputPath);
                 outputBuilder.setVideoCodec(videoCodec);
                 outputBuilder.setAudioCodec(audioCodec);
                 outputBuilder.setVideoResolution(params.getWidth(), params.getHeight());
                 outputBuilder.setVideoFrameRate(params.getFps());
                 
-                // Codec'e göre sıkıştırma ayarları
+                // Codece göre sıkıştırma ayarları
                 if (videoCodec.equals("libx264")) {
                     // H.264 için CRF (Constant Rate Factor) kullan - daha iyi kalite/sıkıştırma oranı
                     int crf = Math.max(18, Math.min(28, 23)); // 18-28 arası, 23 varsayılan (düşük = daha iyi kalite)
@@ -274,7 +274,7 @@ public class FFmpegService {
                     outputBuilder.addExtraArgs("-deadline", "good"); // Sıkıştırma kalitesi: best, good, realtime
                     outputBuilder.addExtraArgs("-cpu-used", "2"); // CPU kullanımı: 0-5 arası, düşük = daha iyi kalite
                 } else {
-                    // Diğer codec'ler için bitrate kullan
+                    // Diğer codecler için bitrate kullan
                     if (params.getBitrate() > 0) {
                         outputBuilder.addExtraArgs("-b:v", params.getBitrate() + "k");
                     }
@@ -282,7 +282,7 @@ public class FFmpegService {
                 
                 // Audio bitrate ayarları
                 if (params.getBitrate() > 0) {
-                    // Video bitrate'inin %10'u kadar audio bitrate
+                    // Video bitrateinin %10'u kadar audio bitrate
                     int audioBitrate = Math.max(64, params.getBitrate() / 10);
                     outputBuilder.addExtraArgs("-b:a", audioBitrate + "k");
                 }
@@ -291,7 +291,7 @@ public class FFmpegService {
                 outputBuilder.addExtraArgs("-movflags", "+faststart");             // Web streaming için optimize
                 outputBuilder.addExtraArgs("-g", "30");                           // GOP (Group of Pictures) boyutu
                 outputBuilder.addExtraArgs("-keyint_min", "25");                 // Minimum keyframe aralığı
-                outputBuilder.addExtraArgs("-sc_threshold", "0");               // Scene change detection'ı kapat
+                outputBuilder.addExtraArgs("-sc_threshold", "0");               // Scene change detectionı kapat
                 outputBuilder.addExtraArgs("-avoid_negative_ts", "make_zero"); // Timestamp sorunlarını önle
                 
                 logger.info("FFmpeg command created: {}", builder.toString());
@@ -343,7 +343,7 @@ public class FFmpegService {
                 }
                 
                 String outputPath = params.getOutputPath();
-                // Format'ı küçük harfe çevir ve Türkçe karakterleri temizle
+                // Formatı küçük harfe çevir ve Türkçe karakterleri temizle
                 String format = params.getFormat().toLowerCase()
                     .replace("ı", "i")
                     .replace("ğ", "g")
@@ -376,18 +376,18 @@ public class FFmpegService {
                 
                 String audioCodec = formatIcinAudioCodecBul(format);
                 
-                // FFmpeg builder'ı oluştur
+                // FFmpeg builderı oluştur
                 FFmpegBuilder builder = new FFmpegBuilder();
                 builder.setInput(params.getInputPath());
                 builder.overrideOutputFiles(true);
                 
-                // Output builder'ı oluştur ve ayarları ekle
+                // Output builderı oluştur ve ayarları ekle
                 FFmpegOutputBuilder outputBuilder = builder.addOutput(outputPath);
                 outputBuilder.setAudioCodec(audioCodec);
                 outputBuilder.setAudioSampleRate(params.getSampleRate());
                 outputBuilder.setAudioChannels(params.getChannels());
                 
-                // Codec'e göre sıkıştırma ayarları
+                // Codece göre sıkıştırma ayarları
                 if (audioCodec.equals("libmp3lame")) {
                     // MP3 için VBR (Variable Bit Rate) kullan - daha iyi kalite/sıkıştırma oranı
                     int quality = Math.max(0, Math.min(9, 5)); // 0-9 arası, 0 = en iyi kalite, 9 = en kötü kalite
@@ -420,7 +420,7 @@ public class FFmpegService {
                     int compression = Math.max(0, Math.min(8, 5)); // 0-8 arası, 0 = hızlı, 8 = en iyi sıkıştırma
                     outputBuilder.addExtraArgs("-compression_level", String.valueOf(compression));
                 } else {
-                    // Diğer codec'ler için bitrate kullan
+                    // Diğer codecler için bitrate kullan
                     if (params.getBitrate() > 0) {
                         outputBuilder.addExtraArgs("-b:a", params.getBitrate() + "k");
                     }
@@ -590,7 +590,7 @@ public class FFmpegService {
             int batchSize = Math.min(10, Math.max(1, totalFiles / 4)); // Maksimum 10 dosya, minimum 1
             logger.info("Batch size: {} files per batch", batchSize);
             
-            // Dosyaları batch'lere böl
+            // Dosyaları batchlere böl
             for (int i = 0; i < totalFiles; i += batchSize) {
                 int endIndex = Math.min(i + batchSize, totalFiles);
                 List<File> batch = files.subList(i, endIndex);
@@ -690,14 +690,14 @@ public class FFmpegService {
                     batchFutures.add(fileFuture);
                 }
                 
-                // Batch'teki tüm dosyaların tamamlanmasını bekle (timeout ile)
+                // Batchteki tüm dosyaların tamamlanmasını bekle (timeout ile)
                 try {
                     CompletableFuture.allOf(batchFutures.toArray(new CompletableFuture[0]))
                         .get(60, java.util.concurrent.TimeUnit.MINUTES); // 60 dakika timeout
                     logger.info("Batch completed: {}/{} files processed", processedFiles[0], totalFiles);
                 } catch (java.util.concurrent.TimeoutException e) {
                     logger.error("Batch processing timeout", e);
-                    // Timeout durumunda kalan future'ları iptal et
+                    // Timeout durumunda kalan futureları iptal et
                     for (CompletableFuture<Void> future : batchFutures) {
                         if (!future.isDone()) {
                             future.cancel(true);
@@ -780,7 +780,7 @@ public class FFmpegService {
     public void setMaxThreads(int maxThreads) {
         this.maxThreads = Math.min(maxThreads, 8); // Maksimum 8 thread
         
-        // Mevcut executor'ı düzgün şekilde kapat
+        // Mevcut executorı düzgün şekilde kapat
         if (executorService != null && !executorService.isShutdown()) {
             logger.info("Shutting down existing executor to update thread count...");
             executorService.shutdown();
